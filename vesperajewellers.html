@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vespera Jewellers | Dainty Fine Jewelry Suite</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ==========================================
+       ROYAL EMERALD & GOLD DESIGN SYSTEM
+       ========================================== */
+    :root {
+      --emerald-darkest: #04140e;
+      --emerald-dark: #08281b;
+      --emerald-medium: #0d3826;
+      --emerald-light: #134d35;
+      
+      --gold-primary: #d4af37;
+      --gold-light: #f3e5ab;
+      --gold-dark: #aa820a;
+      
+      --cream: #faf7f2;
+      --cream-muted: #c8c2b7;
+      --glass-bg: rgba(8, 40, 27, 0.85);
+      --glass-border: rgba(212, 175, 55, 0.25);
+      
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-cursive: 'Alex Brush', cursive;
+      
+      --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --shadow-gold: 0 8px 32px rgba(212, 175, 55, 0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    
+    body {
+      background-color: var(--emerald-darkest);
+      color: var(--cream);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 400; color: var(--cream); }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; }
+    input, select, textarea { font-family: inherit; }
+
+    .container {
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      transition: var(--transition-smooth);
+      border: 1px solid transparent;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .btn-gold {
+      background: var(--gold-primary);
+      color: var(--emerald-darkest);
+      font-weight: 600;
+    }
+    .btn-gold:hover {
+      background: var(--gold-light);
+      box-shadow: var(--shadow-gold);
+      transform: translateY(-2px);
+    }
+    .btn-outline {
+      background: transparent;
+      color: var(--gold-primary);
+      border-color: var(--gold-primary);
+    }
+    .btn-outline:hover {
+      background: rgba(212, 175, 55, 0.1);
+      color: var(--gold-light);
+      transform: translateY(-2px);
+    }
+    .btn-danger {
+      background: rgba(255, 77, 77, 0.1);
+      color: #ff4d4d;
+      border-color: #ff4d4d;
+    }
+    .btn-danger:hover {
+      background: #ff4d4d;
+      color: #fff;
+    }
+
+    /* Floating Owner Control Button */
+    .floating-admin-badge {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      z-index: 999;
+      background: var(--gold-primary);
+      color: var(--emerald-darkest);
+      border: none;
+      padding: 12px 20px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      border-radius: 30px;
+      box-shadow: 0 8px 25px rgba(212,175,55,0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--transition-smooth);
+    }
+    .floating-admin-badge:hover {
+      transform: scale(1.05);
+      background: var(--gold-light);
+    }
+
+    /* HEADER & NAV */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(4, 20, 14, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 16px 0;
+    }
+    .header-flex {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      letter-spacing: 0.15em;
+      color: var(--gold-primary);
+    }
+    .brand-logo span { outline: none; border-bottom: 1px dashed transparent; }
+    .brand-logo span:hover { border-bottom-color: var(--gold-primary); }
+
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .nav-links a:hover { color: var(--gold-primary); }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--cream);
+      cursor: pointer;
+      position: relative;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition-smooth);
+    }
+    .icon-btn:hover { color: var(--gold-primary); }
+    .icon-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .badge-count {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: var(--gold-primary);
+      color: var(--emerald-darkest);
+      font-size: 0.65rem;
+      font-weight: 700;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* HERO SECTION */
+    .hero-section {
+      padding: 90px 0 70px;
+      background: radial-gradient(circle at 70% 30%, var(--emerald-medium) 0%, var(--emerald-darkest) 70%);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 50px;
+      align-items: center;
+    }
+    .hero-title {
+      font-size: 3.2rem;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .hero-title span { color: var(--gold-primary); font-style: italic; }
+    .hero-desc { color: var(--cream-muted); margin-bottom: 30px; font-size: 1rem; max-width: 480px; }
+    .hero-visual {
+      position: relative;
+      display: flex;
+      justify-content: center;
+    }
+    .hero-ring-svg { width: 280px; height: 280px; filter: drop-shadow(0 0 20px rgba(212,175,55,0.3)); }
+
+    /* OWNER CONTROL BANNER */
+    .owner-banner {
+      background: rgba(212, 175, 55, 0.12);
+      border: 1px solid var(--gold-primary);
+      border-radius: 6px;
+      padding: 20px 24px;
+      margin: 40px 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .owner-banner h3 { color: var(--gold-primary); font-size: 1.2rem; margin-bottom: 4px; }
+    .owner-banner p { color: var(--cream-muted); font-size: 0.85rem; }
+
+    /* CATALOG SECTION */
+    .shop-section { padding: 40px 0 80px; }
+    .section-header { text-align: center; margin-bottom: 40px; }
+    .section-title { font-size: 2.4rem; margin-bottom: 8px; }
+    .section-subtitle { color: var(--gold-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.2em; }
+
+    .catalog-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .search-bar-input {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--glass-border);
+      color: var(--cream);
+      padding: 10px 16px;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      width: 260px;
+      outline: none;
+    }
+    .search-bar-input:focus { border-color: var(--gold-primary); }
+
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 30px;
+    }
+    .product-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 4px;
+      padding: 20px;
+      transition: var(--transition-smooth);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .product-card:hover {
+      border-color: var(--gold-primary);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-gold);
+    }
+    .product-img-box {
+      height: 200px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.2);
+      border-radius: 4px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .product-img-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .product-img-box svg { width: 120px; height: 120px; }
+    
+    .product-title { font-size: 1.1rem; margin-bottom: 6px; }
+    .product-price { font-size: 1.2rem; font-weight: 600; color: var(--gold-primary); margin-bottom: 12px; }
+    .product-desc { font-size: 0.8rem; color: var(--cream-muted); margin-bottom: 16px; min-height: 40px; }
+
+    .card-owner-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px dashed var(--glass-border);
+    }
+
+    /* MODALS & OVERLAYS */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: var(--transition-smooth);
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .modal-content {
+      background: var(--emerald-dark);
+      border: 1px solid var(--gold-primary);
+      border-radius: 6px;
+      width: 100%;
+      max-width: 580px;
+      padding: 30px;
+      position: relative;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .close-modal-btn {
+      position: absolute;
+      top: 16px; right: 20px;
+      background: none;
+      border: none;
+      color: var(--cream);
+      font-size: 1.6rem;
+      cursor: pointer;
+    }
+    .close-modal-btn:hover { color: var(--gold-primary); }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.75rem; color: var(--gold-primary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+    .form-control {
+      width: 100%;
+      padding: 10px 14px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--glass-border);
+      color: var(--cream);
+      border-radius: 4px;
+      outline: none;
+    }
+    .form-control:focus { border-color: var(--gold-primary); }
+
+    /* CART DRAWER */
+    .drawer-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 900;
+      opacity: 0; pointer-events: none;
+      transition: var(--transition-smooth);
+    }
+    .drawer-overlay.active { opacity: 1; pointer-events: all; }
+    .cart-drawer {
+      position: fixed;
+      top: 0; right: -420px; bottom: 0;
+      width: 100%; max-width: 400px;
+      background: var(--emerald-dark);
+      border-left: 1px solid var(--gold-primary);
+      z-index: 950;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      transition: var(--transition-smooth);
+    }
+    .cart-drawer.active { right: 0; }
+    .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 12px; }
+    .cart-items-list { flex: 1; overflow-y: auto; margin-bottom: 20px; }
+    .cart-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* TOAST NOTIFICATION */
+    .toast-msg {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: var(--gold-primary);
+      color: var(--emerald-darkest);
+      padding: 12px 24px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      z-index: 9999;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: var(--transition-smooth);
+    }
+    .toast-msg.show { transform: translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Owner Control Badge -->
+  <button class="floating-admin-badge" id="floating-admin-btn">
+    <span>👑</span> <span>Owner Control: Add / Edit Product</span>
+  </button>
+
+  <!-- HEADER -->
+  <header>
+    <div class="container header-flex">
+      <a href="#" class="brand-logo">
+        <span id="header-brand-title" contenteditable="true" title="Click to rename brand">VESPERA JEWELLERS</span>
+        <button id="edit-brand-pencil-btn" style="background:none; border:none; color:var(--gold-primary); cursor:pointer;">✏️</button>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#">Home</a></li>
+        <li><a href="#shop">Collection</a></li>
+        <li><a href="#shop" onclick="openAddProductModal()">Add Product</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <button class="btn btn-gold" id="nav-owner-btn" style="padding: 6px 14px; font-size: 0.7rem;">👑 Owner Dashboard</button>
+        <button class="icon-btn" id="cart-icon-btn" title="Shopping Cart">
+          <svg viewBox="0 0 24 24"><path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
+          <span class="badge-count" id="cart-badge">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO SECTION -->
+  <section class="hero-section">
+    <div class="container hero-grid">
+      <div>
+        <h1 class="hero-title">Dainty treasures<br>designed for <span>Everyday Radiance</span></h1>
+        <p class="hero-desc">Explore handcrafted solid gold and sterling silver fine jewelry pieces designed for minimalist elegance.</p>
+        <div style="display:flex; gap:16px;">
+          <a href="#shop" class="btn btn-gold">Explore Collection</a>
+          <button class="btn btn-outline" id="hero-add-btn">➕ Add New Product</button>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <svg class="hero-ring-svg" viewBox="0 0 200 200">
+          <ellipse cx="100" cy="110" rx="52" ry="28" fill="none" stroke="url(#gold-grad)" stroke-width="8" />
+          <polygon points="100,50 115,65 100,80 85,65" fill="rgba(80, 200, 120, 0.95)" />
+          <defs>
+            <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#f3e5ab" />
+              <stop offset="50%" stop-color="#d4af37" />
+              <stop offset="100%" stop-color="#aa820a" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATALOG SECTION -->
+  <section class="shop-section" id="shop">
+    <div class="container">
+      
+      <!-- STORE OWNER BANNER -->
+      <div class="owner-banner">
+        <div>
+          <h3>👑 Store Owner Inventory & Price Manager</h3>
+          <p>Add new products, change prices in ₹, rename products, or update photos anytime.</p>
+        </div>
+        <button class="btn btn-gold" id="banner-add-btn">➕ Add New Product</button>
+      </div>
+
+      <div class="section-header">
+        <h2 class="section-title">The Minimalist Suite</h2>
+        <p class="section-subtitle">Dainty Fine Jewelry Collection</p>
+      </div>
+
+      <!-- SEARCH & FILTER CONTROLS -->
+      <div class="catalog-controls">
+        <input type="text" id="catalog-search-input" class="search-bar-input" placeholder="🔍 Search jewelry name or price...">
+        <div style="font-size:0.85rem; color:var(--gold-primary);" id="catalog-item-count">Showing 6 Products</div>
+      </div>
+
+      <!-- PRODUCT GRID -->
+      <div class="product-grid" id="main-product-grid">
+        <!-- Dynamically rendered by JavaScript -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ADD / EDIT PRODUCT MODAL -->
+  <div class="modal-overlay" id="product-editor-modal">
+    <div class="modal-content">
+      <button class="close-modal-btn" id="close-editor-btn">&times;</button>
+      <h2 style="color:var(--gold-primary); font-size:1.6rem; margin-bottom:6px;" id="editor-modal-title">Add New Product</h2>
+      <p style="color:var(--cream-muted); font-size:0.8rem; margin-bottom:20px;">Manage catalog title, price, image URL, and details.</p>
+
+      <form id="product-editor-form">
+        <input type="hidden" id="edit-prod-id" value="">
+
+        <div class="form-group">
+          <label>Product Name *</label>
+          <input type="text" id="input-prod-name" class="form-control" required placeholder="e.g. Aura Emerald Solitaire">
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div class="form-group">
+            <label>Price in ₹ *</label>
+            <input type="number" id="input-prod-price" class="form-control" required placeholder="e.g. 3500">
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="input-prod-cat" class="form-control">
+              <option value="rings">Rings</option>
+              <option value="necklaces">Necklaces</option>
+              <option value="earrings">Earrings</option>
+              <option value="bracelets">Bracelets</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Image Photo URL or File Path</label>
+          <input type="text" id="input-prod-img" class="form-control" placeholder="images/photo.jpg or https://...">
+        </div>
+
+        <div class="form-group">
+          <label>Product Description</label>
+          <textarea id="input-prod-desc" rows="3" class="form-control" placeholder="Short description of metal & gemstone..."></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+          <button type="button" class="btn btn-outline" id="cancel-editor-btn">Cancel</button>
+          <button type="submit" class="btn btn-gold">Save & Publish</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CHECKOUT MODAL -->
+  <div class="modal-overlay" id="checkout-modal">
+    <div class="modal-content" style="max-width:500px;">
+      <button class="close-modal-btn" id="close-checkout-btn">&times;</button>
+      <h2 style="color:var(--gold-primary); margin-bottom:6px;">Complete Order</h2>
+      <p style="color:var(--cream-muted); font-size:0.85rem; margin-bottom:20px;">Select Indian Payment Method</p>
+
+      <form id="checkout-form">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" id="cust-name" class="form-control" required placeholder="Priya Sharma">
+        </div>
+        <div class="form-group">
+          <label>Phone / WhatsApp *</label>
+          <input type="tel" id="cust-phone" class="form-control" required placeholder="+91 9876543210">
+        </div>
+        <div class="form-group">
+          <label>Delivery Address *</label>
+          <input type="text" id="cust-address" class="form-control" required placeholder="House No, Street, City, Pincode">
+        </div>
+
+        <div class="form-group">
+          <label>Payment Method</label>
+          <select id="cust-pay-method" class="form-control" onchange="togglePayView(this.value)">
+            <option value="upi">📱 UPI / QR Code (GPay, PhonePe, Paytm)</option>
+            <option value="card">💳 Credit / Debit Card</option>
+            <option value="cod">💵 Cash on Delivery (COD)</option>
+          </select>
+        </div>
+
+        <div id="upi-qr-box" style="text-align:center; padding:15px; background:rgba(0,0,0,0.3); border:1px dashed var(--gold-primary); margin-bottom:20px;">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=upi://pay?pa=vespera@upi%26pn=Vespera" alt="QR Code" style="border:3px solid #fff; border-radius:4px;">
+          <div style="font-size:0.75rem; color:var(--gold-light); margin-top:6px;">UPI ID: <strong>vesperajewellers@upi</strong></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--glass-border); padding-top:16px;">
+          <div>
+            <div style="font-size:0.75rem; color:var(--cream-muted);">Total Amount</div>
+            <div style="font-size:1.4rem; font-weight:700; color:var(--gold-primary);" id="checkout-payable-amt">₹0</div>
+          </div>
+          <button type="submit" class="btn btn-gold">Confirm Purchase</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ORDER RECEIPT MODAL -->
+  <div class="modal-overlay" id="receipt-modal">
+    <div class="modal-content" style="text-align:center;">
+      <div style="font-size:3rem;">✨</div>
+      <h2 style="color:var(--gold-primary); margin-bottom:8px;">Order Confirmed!</h2>
+      <div id="receipt-details-content" style="text-align:left; background:rgba(0,0,0,0.4); border:1px solid var(--gold-primary); padding:16px; margin:20px 0; border-radius:4px; font-size:0.85rem;"></div>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="if(window.lastOrderWaUrl) window.open(window.lastOrderWaUrl, '_blank');">📱 Open WhatsApp Order Message</button>
+        <button class="btn btn-outline" onclick="window.print()">🖨️ Print Receipt</button>
+        <button class="btn btn-outline" onclick="document.getElementById('receipt-modal').classList.remove('active')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CART DRAWER & OVERLAY -->
+  <div class="drawer-overlay" id="drawer-bg"></div>
+  <div class="cart-drawer" id="cart-drawer-panel">
+    <div class="drawer-header">
+      <h3 style="color:var(--gold-primary);">Your Cart</h3>
+      <button style="background:none; border:none; color:#fff; font-size:1.4rem; cursor:pointer;" id="close-cart-btn">&times;</button>
+    </div>
+    <div class="cart-items-list" id="cart-items-container">
+      <!-- Dynamic cart items -->
+    </div>
+    <div style="border-top:1px solid var(--glass-border); padding-top:16px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:16px; font-size:1.1rem; font-weight:600;">
+        <span>Subtotal:</span>
+        <span style="color:var(--gold-primary);" id="cart-total-display">₹0</span>
+      </div>
+      <button class="btn btn-gold" style="width:100%;" id="cart-proceed-checkout-btn">Proceed to Checkout</button>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast-msg" id="toast-msg">Action Completed!</div>
+
+  <!-- JAVASCRIPT ENGINE -->
+  <script>
+    // 1. DEFAULT PRODUCTS DATA
+    const INITIAL_PRODUCTS = [
+      {
+        id: 'aura-band',
+        name: 'Aura Stackable Gold Band',
+        price: 2400,
+        category: 'rings',
+        desc: 'An ultra-slender gold stacker band crafted in 18k solid gold. Designed for comfort.',
+        image: 'images/solitaire_ring_gold_1784736335383.jpg',
+        svg: `<svg viewBox="0 0 100 100"><ellipse cx="50" cy="60" rx="35" ry="18" fill="none" stroke="#d4af37" stroke-width="6" /></svg>`
+      },
+      {
+        id: 'crescent-necklace',
+        name: 'Celestial Moon Diamond Necklace',
+        price: 3800,
+        category: 'necklaces',
+        desc: 'A tiny crescent moon pendant paved with glistening diamonds on a delicate solid gold chain.',
+        image: 'images/moon_necklace_gold_1784736354419.jpg',
+        svg: `<svg viewBox="0 0 100 100"><path d="M 58 40 A 10 10 0 0 0 42 60 A 10 10 0 1 1 58 40" fill="#d4af37" /></svg>`
+      },
+      {
+        id: 'solitaire-ring',
+        name: 'Celeste Emerald Solitaire Ring',
+        price: 3200,
+        category: 'rings',
+        desc: 'A shimmering minimalist solitaire band with a stunning emerald cut crystal gemstone.',
+        image: 'images/solitaire_ring_gold_1784736335383.jpg',
+        svg: `<svg viewBox="0 0 100 100"><ellipse cx="50" cy="65" rx="35" ry="18" fill="none" stroke="#d4af37" stroke-width="5" /><polygon points="50,30 59,42 50,54 41,42" fill="rgba(80, 200, 120, 0.95)" /></svg>`
+      },
+      {
+        id: 'luna-earrings',
+        name: 'Luna Gemstone Stud Earrings',
+        price: 1800,
+        category: 'earrings',
+        desc: 'A pair of tiny, brilliant-cut gemstone studs held in a delicate claw setting.',
+        image: null,
+        svg: `<svg viewBox="0 0 100 100"><circle cx="35" cy="50" r="8" fill="none" stroke="#d4af37" stroke-width="2" /><circle cx="65" cy="50" r="8" fill="none" stroke="#d4af37" stroke-width="2" /></svg>`
+      },
+      {
+        id: 'celeste-bracelet',
+        name: 'Celeste Interlinked Chain Bracelet',
+        price: 2200,
+        category: 'bracelets',
+        desc: 'An ultra-slender interlinked chain bracelet that curves gracefully around the wrist.',
+        image: null,
+        svg: `<svg viewBox="0 0 100 100"><path d="M20,50 Q35,42 50,50 T80,50" fill="none" stroke="#d4af37" stroke-width="3" /></svg>`
+      },
+      {
+        id: 'huggie-hoops',
+        name: 'Selene Huggie Gold Hoops',
+        price: 1900,
+        category: 'earrings',
+        desc: 'Elegant, minimalist gold hoops sitting close to the earlobe.',
+        image: null,
+        svg: `<svg viewBox="0 0 100 100"><circle cx="35" cy="50" r="14" fill="none" stroke="#d4af37" stroke-width="6" /><circle cx="65" cy="50" r="14" fill="none" stroke="#d4af37" stroke-width="6" /></svg>`
+      }
+    ];
+
+    // Load state from localStorage
+    let products = JSON.parse(localStorage.getItem('vespera_app_products')) || INITIAL_PRODUCTS;
+    let cart = JSON.parse(localStorage.getItem('vespera_app_cart')) || [];
+    let currentBrandName = localStorage.getItem('vespera_brand_name') || 'VESPERA JEWELLERS';
+
+    // DOM Elements
+    const grid = document.getElementById('main-product-grid');
+    const searchInput = document.getElementById('catalog-search-input');
+    const editorModal = document.getElementById('product-editor-modal');
+    const editorForm = document.getElementById('product-editor-form');
+    const checkoutModal = document.getElementById('checkout-modal');
+    const cartDrawer = document.getElementById('cart-drawer-panel');
+    const drawerBg = document.getElementById('drawer-bg');
+
+    // 2. RENDER PRODUCT CATALOG GRID
+    function renderGrid(filterText = '') {
+      grid.innerHTML = '';
+      
+      const filtered = products.filter(p => {
+        if (!filterText) return true;
+        const q = filterText.toLowerCase();
+        return p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q) || String(p.price).includes(q);
+      });
+
+      document.getElementById('catalog-item-count').textContent = `Showing ${filtered.length} Products`;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--cream-muted);">No products match your search. Click "Add New Product" to add items!</div>`;
+        return;
+      }
+
+      filtered.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'product-card';
+        card.innerHTML = `
+          <div>
+            <div class="product-img-box">
+              ${p.image ? `<img src="${p.image}" alt="${p.name}" onerror="this.outerHTML='<div>${p.svg.replace(/"/g, '&quot;')}</div>'">` : p.svg}
+            </div>
+
+            <div class="card-owner-actions">
+              <button class="btn btn-outline" style="padding:4px 8px; font-size:0.7rem;" onclick="openEditProductModal('${p.id}')">✏️ Edit Product & Price</button>
+              <button class="btn btn-danger" style="padding:4px 8px; font-size:0.7rem;" onclick="deleteProduct('${p.id}')">🗑️ Delete</button>
+            </div>
+
+            <h3 class="product-title">${p.name}</h3>
+            <div class="product-price">₹${p.price}</div>
+            <p class="product-desc">${p.desc}</p>
+          </div>
+
+          <button class="btn btn-gold" style="width:100%; margin-top:12px;" onclick="addToCart('${p.id}')">Add To Cart</button>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    // 3. ADD / EDIT PRODUCT MODAL LOGIC
+    function openAddProductModal() {
+      document.getElementById('editor-modal-title').textContent = 'Add New Product';
+      document.getElementById('edit-prod-id').value = '';
+      document.getElementById('input-prod-name').value = '';
+      document.getElementById('input-prod-price').value = '';
+      document.getElementById('input-prod-cat').value = 'rings';
+      document.getElementById('input-prod-img').value = '';
+      document.getElementById('input-prod-desc').value = '';
+      editorModal.classList.add('active');
+    }
+
+    function openEditProductModal(id) {
+      const p = products.find(item => item.id === id);
+      if (!p) return;
+
+      document.getElementById('editor-modal-title').textContent = 'Edit Product: ' + p.name;
+      document.getElementById('edit-prod-id').value = p.id;
+      document.getElementById('input-prod-name').value = p.name;
+      document.getElementById('input-prod-price').value = p.price;
+      document.getElementById('input-prod-cat').value = p.category || 'rings';
+      document.getElementById('input-prod-img').value = p.image || '';
+      document.getElementById('input-prod-desc').value = p.desc || '';
+      editorModal.classList.add('active');
+    }
+
+    function closeEditorModal() {
+      editorModal.classList.remove('active');
+    }
+
+    editorForm.onsubmit = function(e) {
+      e.preventDefault();
+      const editId = document.getElementById('edit-prod-id').value;
+      const name = document.getElementById('input-prod-name').value.trim();
+      const price = parseFloat(document.getElementById('input-prod-price').value);
+      const category = document.getElementById('input-prod-cat').value;
+      const image = document.getElementById('input-prod-img').value.trim();
+      const desc = document.getElementById('input-prod-desc').value.trim();
+
+      if (editId) {
+        // Edit existing product
+        const p = products.find(item => item.id === editId);
+        if (p) {
+          p.name = name;
+          p.price = price;
+          p.category = category;
+          if (image) p.image = image;
+          p.desc = desc;
+        }
+      } else {
+        // Add new product
+        const newId = 'prod-' + Date.now();
+        products.unshift({
+          id: newId,
+          name: name,
+          price: price,
+          category: category,
+          desc: desc || 'Exquisite fine jewelry piece.',
+          image: image || null,
+          svg: `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="30" fill="none" stroke="#d4af37" stroke-width="4" /></svg>`
+        });
+      }
+
+      localStorage.setItem('vespera_app_products', JSON.stringify(products));
+      closeEditorModal();
+      renderGrid();
+      showToast('Product saved successfully!');
+    };
+
+    function deleteProduct(id) {
+      if (!confirm('Are you sure you want to delete this product?')) return;
+      products = products.filter(p => p.id !== id);
+      localStorage.setItem('vespera_app_products', JSON.stringify(products));
+      renderGrid();
+      showToast('Product deleted.');
+    }
+
+    // 4. SEARCH BAR REAL-TIME LOGIC
+    searchInput.oninput = function() {
+      renderGrid(this.value.trim());
+    };
+
+    // 5. CART & CHECKOUT LOGIC
+    function addToCart(id) {
+      const p = products.find(item => item.id === id);
+      if (!p) return;
+
+      const existing = cart.find(item => item.id === id);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        cart.push({ id: p.id, name: p.name, price: p.price, qty: 1 });
+      }
+
+      saveCart();
+      showToast(`Added "${p.name}" to cart!`);
+    }
+
+    function saveCart() {
+      localStorage.setItem('vespera_app_cart', JSON.stringify(cart));
+      renderCart();
+    }
+
+    function renderCart() {
+      const container = document.getElementById('cart-items-container');
+      container.innerHTML = '';
+      let total = 0;
+      let totalQty = 0;
+
+      cart.forEach((item, index) => {
+        const itemTotal = item.price * item.qty;
+        total += itemTotal;
+        totalQty += item.qty;
+
+        const div = document.createElement('div');
+        div.className = 'cart-item';
+        div.innerHTML = `
+          <div>
+            <div style="font-weight:600; font-size:0.9rem;">${item.name}</div>
+            <div style="color:var(--gold-primary); font-size:0.85rem;">₹${item.price} x ${item.qty}</div>
+          </div>
+          <button style="background:none; border:none; color:#ff4d4d; cursor:pointer;" onclick="removeCartItem(${index})">&times;</button>
+        `;
+        container.appendChild(div);
+      });
+
+      document.getElementById('cart-badge').textContent = totalQty;
+      document.getElementById('cart-total-display').textContent = '₹' + total;
+      document.getElementById('checkout-payable-amt').textContent = '₹' + total;
+    }
+
+    function removeCartItem(idx) {
+      cart.splice(idx, 1);
+      saveCart();
+    }
+
+    // 6. CHECKOUT FORM & RECEIPT
+    document.getElementById('cart-proceed-checkout-btn').onclick = function() {
+      if (cart.length === 0) {
+        showToast('Your cart is empty!');
+        return;
+      }
+      cartDrawer.classList.remove('active');
+      drawerBg.classList.remove('active');
+      checkoutModal.classList.add('active');
+    };
+
+    document.getElementById('checkout-form').onsubmit = function(e) {
+      e.preventDefault();
+      const name = document.getElementById('cust-name').value.trim();
+      const phone = document.getElementById('cust-phone').value.trim();
+      const address = document.getElementById('cust-address').value.trim();
+      const payMethod = document.getElementById('cust-pay-method').value.toUpperCase();
+
+      if (cart.length === 0) {
+        showToast('Your cart is empty!');
+        return;
+      }
+
+      let total = 0;
+      let itemsHtml = '';
+      let waText = '✨ *NEW ORDER PLACED on ' + currentBrandName + '* ✨\n';
+      const orderId = 'VJ-' + Math.floor(100000 + Math.random() * 900000);
+      waText += '*Order ID:* ' + orderId + '\n';
+      waText += '*Customer Name:* ' + name + '\n';
+      waText += '*Phone:* ' + phone + '\n';
+      waText += '*Delivery Address:* ' + address + '\n';
+      waText += '*Payment Method:* ' + payMethod + '\n\n*ITEMS:*\n';
+
+      cart.forEach(item => {
+        const t = item.price * item.qty;
+        total += t;
+        itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${item.name} (x${item.qty})</span><span>₹${t}</span></div>`;
+        waText += '- ' + item.name + ' x' + item.qty + ' = ₹' + t + '\n';
+      });
+
+      waText += '\n*TOTAL PAID:* ₹' + total;
+
+      // Encode WhatsApp URL
+      const waUrl = 'https://api.whatsapp.com/send?phone=919876543210&text=' + encodeURIComponent(waText);
+      window.lastOrderWaUrl = waUrl;
+
+      document.getElementById('receipt-details-content').innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed var(--gold-primary); padding-bottom:8px; margin-bottom:10px;">
+          <strong>Order ID: ${orderId}</strong>
+          <span style="color:var(--gold-primary); font-weight:bold;">${payMethod}</span>
+        </div>
+        <div>
+          <strong>Customer:</strong> ${name} (${phone})<br>
+          <strong>Shipping Address:</strong> ${address}
+        </div>
+        <hr style="border-color:var(--glass-border); margin:10px 0;">
+        <div>
+          <strong>Items Summary:</strong>
+          ${itemsHtml}
+        </div>
+        <hr style="border-color:var(--gold-primary); margin:10px 0;">
+        <div style="font-weight:bold; font-size:1.15rem; color:var(--gold-light); text-align:right;">Total Amount: ₹${total}</div>
+      `;
+
+      checkoutModal.classList.remove('active');
+      document.getElementById('receipt-modal').classList.add('active');
+
+      // Trigger automatic WhatsApp tab dispatch
+      showToast('Order confirmed! Opening WhatsApp order message...');
+      setTimeout(() => {
+        window.open(waUrl, '_blank');
+      }, 800);
+
+      cart = [];
+      saveCart();
+    };
+
+    function togglePayView(val) {
+      document.getElementById('upi-qr-box').style.display = val === 'upi' ? 'block' : 'none';
+    }
+
+    // 7. BRAND NAME EDITING
+    const brandSpan = document.getElementById('header-brand-title');
+    brandSpan.textContent = currentBrandName;
+
+    brandSpan.onblur = function() {
+      currentBrandName = this.textContent.trim() || 'VESPERA JEWELLERS';
+      localStorage.setItem('vespera_brand_name', currentBrandName);
+      showToast('Brand name updated!');
+    };
+
+    document.getElementById('edit-brand-pencil-btn').onclick = function() {
+      const name = prompt('Enter your custom brand name:', currentBrandName);
+      if (name && name.trim()) {
+        currentBrandName = name.trim();
+        brandSpan.textContent = currentBrandName;
+        localStorage.setItem('vespera_brand_name', currentBrandName);
+        showToast('Brand name saved!');
+      }
+    };
+
+    // 8. EVENT BINDINGS FOR MODALS & BUTTONS
+    document.getElementById('floating-admin-btn').onclick = openAddProductModal;
+    document.getElementById('nav-owner-btn').onclick = openAddProductModal;
+    document.getElementById('banner-add-btn').onclick = openAddProductModal;
+    document.getElementById('hero-add-btn').onclick = openAddProductModal;
+    document.getElementById('close-editor-btn').onclick = closeEditorModal;
+    document.getElementById('cancel-editor-btn').onclick = closeEditorModal;
+    document.getElementById('close-checkout-btn').onclick = function() { checkoutModal.classList.remove('active'); };
+
+    document.getElementById('cart-icon-btn').onclick = function() {
+      cartDrawer.classList.add('active');
+      drawerBg.classList.add('active');
+    };
+    document.getElementById('close-cart-btn').onclick = function() {
+      cartDrawer.classList.remove('active');
+      drawerBg.classList.remove('active');
+    };
+    drawerBg.onclick = function() {
+      cartDrawer.classList.remove('active');
+      drawerBg.classList.remove('active');
+    };
+
+    function showToast(msg) {
+      const t = document.getElementById('toast-msg');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // INITIALIZATION
+    renderGrid();
+    renderCart();
+  </script>
+</body>
+</html>
