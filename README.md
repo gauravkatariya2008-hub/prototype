@@ -1,4 +1,7 @@
-# Vespera Jewellers — E-commerce Prototype
+
+
+## Live Demo
+https://gauravkatariya2008-hub.github.io/prototype/# Vespera Jewellers — E-commerce Prototype
 
 A front-end e-commerce concept for a fine jewellery storefront, put together solo with AI coding assistants as a quick prototype in around 30 minutes.
 
