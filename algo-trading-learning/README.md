@@ -1,52 +1,77 @@
-# Algo Trading — Beginner Learning Kit
+# Swing-Trade Scanner for NSE Stocks
 
-This is a **learning tool, not a money-making bot.** It never places orders and never connects to your Zerodha account.
+A learning tool. It **never places orders** and never touches your Zerodha login.
 
-## What algo trading is
+It checks written-down trading rules against NSE stocks every evening. For each setup it finds, it shows you **how that exact rule performed on years of past data, after Zerodha charges**. It doesn't predict the future and doesn't promise profit. It tells you the measured odds, so you can decide.
 
-Algo (algorithmic) trading means writing your buy and sell rules as code, so a computer applies them instead of you deciding by feel. For example:
+## What's in here
 
-> "Buy when the 20-day average price rises above the 50-day average. Sell when it drops below."
+| File | What it does |
+|---|---|
+| `scan.py` | Today's top setups, or analyses one stock you name |
+| `evaluate.py` | Measures every rule on past data: win rate, average win and loss, profit after charges |
+| `signals.py` | The rules as code. Every threshold is a named number at the top |
+| `patterns.md` | The same rules in plain English. Check them against your Varsity notes |
+| `costs.py` | Zerodha delivery charges (STT, stamp duty, exchange fees, DP charge) |
+| `data.py`, `universe.py` | Price downloads, the local price cache and the liquidity filter |
+| `backtest.py` | The simpler moving-average backtester from earlier |
+| `tests.py` | 49 tests. Run them after changing anything |
 
-A program checks that rule and acts on it. The code only follows your rules faster and without emotion. **If the rules lose money, the code loses money faster.**
+## Setup (once)
 
-The serious work in algo trading is **backtesting**: running your rule on years of past prices to see what would have happened, before you put in real money. That is what this script does.
-
-## Running it
-
-You need Python 3 installed.
+You need Python 3.
 
 ```bash
-pip install pandas yfinance
-python backtest.py --demo                       # made-up prices, to check it runs
-python backtest.py                              # Reliance, last 5 years
-python backtest.py --symbol TCS.NS --years 10
-python backtest.py --symbol HDFCBANK.NS --fast 10 --slow 30
+pip install pandas yfinance requests
+python scan.py --update --refresh-universe   # downloads all NSE stocks, ~10-20 minutes
+python evaluate.py                           # measures every rule on the history
 ```
 
-NSE symbols end in `.NS` (for example `INFY.NS` or `SBIN.NS`). Price data comes from Yahoo Finance.
+Try it without internet first with `python evaluate.py --demo` and `python scan.py --demo`. These use made-up prices.
+
+## Every day, in the evening after the market closes
+
+```bash
+python scan.py --update     # refresh prices (slow for the full list)
+python scan.py              # today's top 5
+```
+
+To check one stock:
+
+```bash
+python scan.py --symbol RELIANCE
+```
+
+Useful options:
+- `--capital 2000`: your trading money, used to size positions.
+- `--risk-pct 0.01`: risk 1% of capital per trade.
+- `--min-turnover 5`: skip stocks trading under ₹5 crore a day.
+- `--top 5`: how many picks to show.
 
 ## Reading the output
 
-| Line | Meaning |
-|---|---|
-| Strategy vs Buy & hold | Did the rule beat simply buying once and holding? Often it doesn't. |
-| Yearly return (CAGR) | Average growth per year. Compare it with a NIFTY index fund or an FD. |
-| Worst fall from peak | The biggest drop you would have had to sit through. Ask yourself whether you could stomach it. |
-| Taxes and charges | STT, stamp duty, exchange fees and DP charges. Frequent trading adds these up quickly. |
+- **buy above / stop / target:** place a buy order only if the price goes above the trigger. The moment it fills, set a **GTT** in Kite (an order that waits until your price is hit) for the stop and target, so the exit happens automatically.
+- **past cases, % won, avg win / avg loss:** how this exact rule did historically.
+- **R before charges:** the move in multiples of your risk, before charges.
+- **profitable / LOST MONEY:** judged after charges. This decides whether the scanner recommends it.
+- **qty: 0, PAPER TRADE ONLY:** your capital is too small to trade this safely. Write it down and track it without real money.
+- **Nothing qualifies today:** the correct answer on most days. It's not a malfunction.
 
-## How the script avoids lying to you
+By default the scanner **only shows setups from rules that were tested on at least 100 past cases and made money after charges.** Losing rules are hidden. `--include-unproven` shows them, clearly labelled.
 
-- It trades at the **next day's open**, not the same day's close. You can't act on a closing price before you've seen it.
-- It deducts **approximate delivery charges** (check Zerodha's brokerage calculator for current rates).
-- It only buys and sells shares. There's no leverage, no short selling and no F&O.
+## What it can't do
 
-It does **not** include income tax on gains (STCG/LTCG), and it can't account for the future looking different from the past.
+- **Predict anything.** Every number is historical. Markets change, and a rule that worked for 8 years can stop working.
+- **Undo bias in the data.** Past prices only exist for companies still listed today. Delisted failures are missing, so results look better than reality.
+- **Promise that a profitable-historically rule will make you money.** It means the odds leaned your way in the past, nothing more.
+- **Trade intraday.** That needs live data (Kite Connect, about ₹2,000/month). This tool is for trades held for days.
+- **See real data in the environment where it was built.** Yahoo Finance was blocked there, so it was tested on synthetic and simulated data. The first run on real prices happens on your machine.
 
-## Before you ever go live
+## Checks built in (so the numbers can be trusted)
 
-1. Learn Kite itself first. Zerodha Varsity (zerodha.com/varsity) is free and is the best starting point in India.
-2. Backtest across many stocks and time periods. One good result on one stock is usually luck.
-3. Paper trade: write down what the rule says each day for a few months, without real money.
-4. Stay away from F&O (futures and options) as a beginner. SEBI's own studies found that about 9 out of 10 individual F&O traders lost money.
-5. If you ever automate real orders through the Kite Connect API, read SEBI's current rules for retail algo trading first. Brokers must now approve and tag algo orders.
+- **No look-ahead:** signals use only data up to the day they fire. This is tested by deleting future days and confirming nothing changes.
+- **Next-day entry:** you enter at the next day's price, never the same day's close.
+- **Pessimistic when unsure:** if the stop and the target were both hit on the same day, it counts as a loss.
+- **No double-counting:** one trade at a time per stock per rule. Trades still open when the data ends are excluded.
+- **Liquidity filter and stale-data filter:** suspended or delisted stocks can't appear as today's picks.
+- **Charges deducted** on both the buy and the sell.
