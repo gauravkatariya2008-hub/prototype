@@ -35,6 +35,7 @@ import universe
 
 STATS_FILE = Path(__file__).with_name("stats.json")
 STALE_DAYS = 5          # a stock whose last bar is this many days old is not "today"
+CHARGE_WARN = 0.25      # warn when charges eat this share of the rupees you are risking
 
 
 def load_stats():
@@ -92,8 +93,12 @@ def describe(symbol, df, sigs, stats, notional, capital, risk_pct, min_turnover,
              f"   risk/share Rs {risk:.2f}"]
     if qty > 0:
         charges = costs.round_trip_cost(entry * qty, target * qty)
+        at_risk = risk * qty
         lines.append(f"   qty at {risk_pct:.0%} risk of Rs {capital:,.0f}: {qty}"
-                     f"   (risking Rs {risk * qty:.0f}, charges about Rs {charges:.0f})")
+                     f"   (risking Rs {at_risk:.0f}, charges about Rs {charges:.0f})")
+        if charges >= CHARGE_WARN * at_risk:
+            lines.append(f"   WARNING: charges are {charges / at_risk:.0%} of what you would risk. "
+                         f"Too small to be worth trading — paper trade it.")
     else:
         lines.append(f"   qty: 0 — Rs {capital:,.0f} cannot size this trade. PAPER TRADE ONLY.")
 
@@ -209,6 +214,10 @@ def main():
             found.append((score(sigs, stats), sym, df, sigs))
     found.sort(key=lambda t: -t[0])
 
+    if not stats:
+        print(f"\nUNMEASURED SETUPS FOR {latest.date()} — NOT RECOMMENDATIONS")
+        print("None of these rules has been checked against history yet. The order below")
+        print("only counts how many rules agree; it says nothing about quality.")
     print(f"\nSETUPS FOR {latest.date()} — {len(frames)} stocks checked, {len(found)} with a setup")
     if stale:
         print(f"({stale} stocks skipped: their data stops before {latest.date()}, "
@@ -224,6 +233,9 @@ def main():
         print(describe(sym, df, sigs, stats, notional, args.capital, args.risk_pct,
                        args.min_turnover, rank))
         print()
+    if not stats:
+        print("Do not trade any of these. Run 'python evaluate.py' first, then scan again.\n")
+        return
     print("Place these yourself in Kite as DELIVERY (Longterm) orders, and set a")
     print("GTT for the stop and target the moment you buy, so the exit is automatic.")
     print("These are historical odds, not predictions. Some of these will lose.\n")

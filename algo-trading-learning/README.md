@@ -15,7 +15,7 @@ It checks written-down trading rules against NSE stocks every evening. For each 
 | `costs.py` | Zerodha delivery charges (STT, stamp duty, exchange fees, DP charge) |
 | `data.py`, `universe.py` | Price downloads, the local price cache and the liquidity filter |
 | `backtest.py` | The simpler moving-average backtester from earlier |
-| `tests.py` | 49 tests. Run them after changing anything |
+| `tests.py` | 52 tests. Run them after changing anything |
 
 ## Setup (once)
 

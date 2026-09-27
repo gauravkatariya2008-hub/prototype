@@ -536,6 +536,46 @@ class TestReviewFixes(unittest.TestCase):
         self.assertIn("DEMO3 on", buf.getvalue())
         self.assertNotIn("DEMO1 on", buf.getvalue())
 
+    def test_warns_when_charges_swallow_the_risk(self):
+        """Found in the first real run: Rs 16 of charges against Rs 13 at risk."""
+        import scan
+        df = signals.add_indicators(uptrend(n=300, vol=5e6))
+        sig = [{"signal": "pullback", "trigger": 229.0, "stop": 216.38, "target": 254.24}]
+        small = scan.describe("X", df, sig, {}, None, 2000, 0.01, min_turnover=5)
+        self.assertIn("WARNING: charges are", small)
+        big = scan.describe("X", df, sig, {}, None, 500000, 0.01, min_turnover=5)
+        self.assertNotIn("WARNING: charges are", big)
+
+    def test_no_order_instructions_without_measured_rules(self):
+        """Found in the first real run: unmeasured picks came with Kite instructions."""
+        import io
+        import sys
+        import contextlib
+        import scan
+        saved = scan.STATS_FILE
+        buf = io.StringIO()
+        argv = sys.argv
+        try:
+            scan.STATS_FILE = scan.Path("/nonexistent/stats.json")
+            sys.argv = ["scan.py", "--demo", "--include-unproven"]
+            with contextlib.redirect_stdout(buf):
+                scan.main()
+        finally:
+            scan.STATS_FILE, sys.argv = saved, argv
+        out = buf.getvalue()
+        self.assertIn("NOT RECOMMENDATIONS", out)
+        self.assertNotIn("Place these yourself in Kite", out)
+
+    def test_unfinished_candle_dropped_during_market_hours(self):
+        df = uptrend(n=5)
+        day = df.index[-1]
+        during = pd.Timestamp(day.date()).tz_localize(data.MARKET_TZ) + pd.Timedelta(hours=13)
+        after = pd.Timestamp(day.date()).tz_localize(data.MARKET_TZ) + pd.Timedelta(hours=18)
+        next_day = during + pd.Timedelta(days=1)
+        self.assertEqual(len(data.drop_unfinished_day(df, during)), 4)
+        self.assertEqual(len(data.drop_unfinished_day(df, after)), 5)
+        self.assertEqual(len(data.drop_unfinished_day(df, next_day)), 5)
+
     def test_position_size_never_exceeds_cash_or_risk(self):
         import scan
         self.assertEqual(scan.position_size(100.0, 95.0, 2000, 0.01), 4)    # Rs 20 risk / Rs 5

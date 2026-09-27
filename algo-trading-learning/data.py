@@ -21,6 +21,8 @@ import signals
 import universe
 
 CACHE = Path(__file__).with_name("data_cache")
+MARKET_TZ = "Asia/Kolkata"
+DAY_FINAL_AFTER = 16    # hour (IST) after which today's daily candle is treated as closed
 COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 BATCH = 50
 
@@ -35,6 +37,21 @@ def read_cached(symbol):
         return None
     df = pd.read_csv(path, parse_dates=["Date"], index_col="Date")
     return df[COLUMNS].dropna() if set(COLUMNS).issubset(df.columns) else None
+
+
+def drop_unfinished_day(df, now=None):
+    """
+    During market hours Yahoo returns today's candle while it is still forming.
+    Every rule assumes a CLOSED candle, so a half-day bar would produce signals
+    that can vanish by 3:30 pm. Drop today's bar until the day is over.
+    """
+    if df.empty:
+        return df
+    now = now if now is not None else pd.Timestamp.now(tz=MARKET_TZ)
+    last = df.index[-1]
+    if last.date() == now.date() and now.hour < DAY_FINAL_AFTER:
+        return df.iloc[:-1]
+    return df
 
 
 def update_cache(symbols, years=8, pause=0.4):
@@ -66,6 +83,7 @@ def update_cache(symbols, years=8, pause=0.4):
                     failed += 1
                     continue
                 df = df[~df.index.duplicated(keep="last")].sort_index()
+                df = drop_unfinished_day(df)
                 df.index.name = "Date"
                 df.to_csv(_cache_path(sym))
                 ok += 1
