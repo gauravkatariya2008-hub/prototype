@@ -583,5 +583,127 @@ class TestReviewFixes(unittest.TestCase):
         self.assertEqual(scan.position_size(100.0, 99.9, 2000, 0.5), 19)    # capped by cash
 
 
+def trade_table(per_year, signal="rule", start_year=2018, noise=50.0, seed=1, per_day=1):
+    """
+    Synthetic trades with a known average per year. per_year: list of means, one per
+    year from start_year. per_day > 1 puts that many identical trades on each date.
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    for k, mean in enumerate(per_year):
+        days = pd.bdate_range(f"{start_year + k}-01-02", periods=60)
+        vals = mean + rng.normal(0, noise, len(days))
+        vals = vals - vals.mean() + mean          # make the year's mean exactly `mean`
+        for d, v in zip(days, vals):
+            for _ in range(per_day):
+                rows.append({"signal": signal, "entry_date": d, "net_rupees": v,
+                             "entry": 100.0, "exit": 100.0 + v / 100, "risk_per_share": 5.0})
+    return pd.DataFrame(rows)
+
+
+class TestStressTest(unittest.TestCase):
+    def test_parallel_replay_matches_sequential(self):
+        frames = data.load_frames(demo=True, years=4)
+        one = evaluate.collect_trades(frames, workers=1)
+        many = evaluate.collect_trades(frames, workers=3)
+        self.assertTrue(one.equals(many))
+
+    def test_split_and_year_figures(self):
+        t = trade_table([10, 20, 30, 40, 50, 60, 70, 80])          # 2018..2025
+        r = evaluate.stress_test(t, split="2023-01-01")["rule"]
+        self.assertAlmostEqual(r["early"]["per_trade"], np.mean([10, 20, 30, 40, 50]), places=6)
+        self.assertAlmostEqual(r["late"]["per_trade"], np.mean([60, 70, 80]), places=6)
+        self.assertEqual(r["early"]["samples"], 300)
+        self.assertEqual(r["positive_years"], 8)
+        self.assertAlmostEqual(r["by_year"][2020]["per_trade"], 30, places=6)
+
+    def test_clustering_ignores_duplicated_same_day_trades(self):
+        """The reason clustering exists: 5 copies of one day's trade are one piece of evidence."""
+        base = trade_table([15] * 8, noise=200)
+        dup = trade_table([15] * 8, noise=200, per_day=5)
+        t_naive_base = evaluate.naive_t(base["net_rupees"])
+        t_naive_dup = evaluate.naive_t(dup["net_rupees"])
+        t_clu_base = evaluate.clustered_t(base["net_rupees"], base["entry_date"])
+        t_clu_dup = evaluate.clustered_t(dup["net_rupees"], dup["entry_date"])
+        self.assertAlmostEqual(t_naive_dup / t_naive_base, np.sqrt(5), delta=0.05)
+        self.assertAlmostEqual(t_clu_dup, t_clu_base, places=6)
+        self.assertAlmostEqual(t_clu_base, t_naive_base, delta=0.05 * abs(t_naive_base))
+
+    def test_pricing_at_your_size(self):
+        t = pd.DataFrame({"entry": [100.0, 100.0], "exit": [110.0, 110.0],
+                          "risk_per_share": [10.0, 25.0]})
+        qty, net = evaluate.price_at_size(t, capital=2000, risk_pct=0.01)
+        self.assertEqual(list(qty), [2, 0])                   # Rs 20 risk / Rs 10 = 2; / Rs 25 = 0
+        self.assertAlmostEqual(net.iloc[0], 20 - costs.round_trip_cost(200.0, 220.0), places=6)
+        self.assertTrue(np.isnan(net.iloc[1]))                # unaffordable: no result, not zero
+
+    def test_steady_edge_holds_up(self):
+        r = evaluate.stress_test(trade_table([20] * 8))["rule"]
+        self.assertTrue(r["robust"], r["reasons"])
+        self.assertEqual(r["reasons"], [])
+
+    def test_edge_that_vanished_recently_is_fragile(self):
+        r = evaluate.stress_test(trade_table([40, 40, 40, 40, 40, -10, -10, -10]))["rule"]
+        self.assertFalse(r["robust"])
+        self.assertTrue(any("from 2023" in x for x in r["reasons"]), r["reasons"])
+
+    def test_edge_that_only_appeared_recently_is_fragile(self):
+        r = evaluate.stress_test(trade_table([-10, -10, -10, -10, -10, 60, 60, 60]))["rule"]
+        self.assertFalse(r["robust"])
+        self.assertTrue(any("before 2023" in x for x in r["reasons"]), r["reasons"])
+
+    def test_edge_from_a_few_lucky_years_is_fragile(self):
+        r = evaluate.stress_test(trade_table([200, -10, -10, -10, 200, -10, -10, -10]))["rule"]
+        self.assertFalse(r["robust"])
+        self.assertTrue(any("only 2 of 8 years" in x for x in r["reasons"]), r["reasons"])
+
+    def test_edge_smaller_than_noise_is_fragile(self):
+        r = evaluate.stress_test(trade_table([3] * 8, noise=400))["rule"]
+        self.assertFalse(r["robust"])
+        self.assertTrue(any("could be luck" in x for x in r["reasons"]), r["reasons"])
+
+    def test_losing_and_tiny_rules_are_not_stress_tested(self):
+        losing = trade_table([-5] * 8, signal="loser")
+        tiny = trade_table([50], signal="tiny").head(30)
+        self.assertEqual(evaluate.stress_test(pd.concat([losing, tiny])), {})
+
+    def test_saved_trades_reproduce_the_same_stats(self):
+        import tempfile
+        import pathlib
+        frames = data.load_frames(demo=True, years=4)
+        trades = evaluate.collect_trades(frames)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "trades.csv"
+            trades.to_csv(path, index=False)
+            reloaded, notional = evaluate.load_trades(path)
+        self.assertEqual(notional, 10000.0)
+        a, b = evaluate.summarize(trades), evaluate.summarize(reloaded)
+        self.assertEqual(a.keys(), b.keys())
+        for rule in a:                       # CSV round-trips floats to ~15 digits, not exactly
+            for field, value in a[rule].items():
+                if isinstance(value, float):
+                    self.assertAlmostEqual(value, b[rule][field], places=9, msg=f"{rule}.{field}")
+                else:
+                    self.assertEqual(value, b[rule][field], msg=f"{rule}.{field}")
+
+    def test_verdict_says_when_a_solid_rule_loses_at_your_size(self):
+        import io
+        import contextlib
+        t = trade_table([20] * 8)
+        t["notional"] = 10000.0
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            evaluate.print_stress(evaluate.stress_test(t, capital=2000), "2023-01-01")
+        self.assertIn("HOLDS UP at Rs 10,000 per trade — but LOSES MONEY at your Rs 2,000",
+                      buf.getvalue())
+
+    def test_scanner_requires_passing_the_stress_test(self):
+        import scan
+        base = {"reliable": True, "expectancy_rupees": 17.0}
+        self.assertTrue(scan.proven("r", {"r": dict(base)}))                   # old stats.json
+        self.assertTrue(scan.proven("r", {"r": dict(base, robust=True)}))
+        self.assertFalse(scan.proven("r", {"r": dict(base, robust=False)}))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

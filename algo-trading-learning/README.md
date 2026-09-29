@@ -15,7 +15,7 @@ It checks written-down trading rules against NSE stocks every evening. For each 
 | `costs.py` | Zerodha delivery charges (STT, stamp duty, exchange fees, DP charge) |
 | `data.py`, `universe.py` | Price downloads, the local price cache and the liquidity filter |
 | `backtest.py` | The simpler moving-average backtester from earlier |
-| `tests.py` | 52 tests. Run them after changing anything |
+| `tests.py` | 65 tests. Run them after changing anything |
 
 ## Setup (once)
 
@@ -26,6 +26,8 @@ pip install pandas yfinance requests
 python scan.py --update --refresh-universe   # downloads all NSE stocks, ~10-20 minutes
 python evaluate.py                           # measures every rule on the history
 ```
+
+`evaluate.py` uses all but one of your CPU cores and prints progress every 50 stocks. It saves every simulated trade to `trades.csv`. After that, `python evaluate.py --from-trades` re-analyses them in seconds without replaying anything.
 
 Try it without internet first with `python evaluate.py --demo` and `python scan.py --demo`. These use made-up prices.
 
@@ -57,7 +59,21 @@ Useful options:
 - **qty: 0, PAPER TRADE ONLY:** your capital is too small to trade this safely. Write it down and track it without real money.
 - **Nothing qualifies today:** the correct answer on most days. It's not a malfunction.
 
-By default the scanner **only shows setups from rules that were tested on at least 100 past cases and made money after charges.** Losing rules are hidden. `--include-unproven` shows them, clearly labelled.
+## Reading the stress test
+
+After the main table, `evaluate.py` stress-tests every rule that made money. A rule **holds up** only if it passes all three checks:
+
+- **Profitable both before and after the split date** (`--split`, default 2023-01-01). An edge that only showed up in some years is probably luck.
+- **Confidence of at least 2.** Trades entered on the same day move together with the market, so each trading day counts as one piece of evidence. The table also shows the inflated figure you'd get if every trade counted separately.
+- **Profitable in at least 60% of years.**
+
+It also re-prices every trade at your own size (`--capital`, `--risk-pct`). A rule can hold up at ₹10,000 per trade and still lose money at ₹2,000, because of the flat ₹15 DP charge. The verdict line says so when that happens.
+
+The split is a stability check, not a clean test, because these rules were chosen after looking at all the years. The only clean test is trades the rules have never seen, which means paper trading from today.
+
+## Which setups the scanner shows
+
+By default the scanner **only shows setups from rules that were tested on at least 100 past cases, made money after charges, and passed the stress test.** Losing rules are hidden. `--include-unproven` shows them, clearly labelled.
 
 ## What it can't do
 

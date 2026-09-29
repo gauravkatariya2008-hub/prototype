@@ -50,9 +50,14 @@ def load_stats():
 
 
 def proven(sig_name, stats):
-    """Measured on enough history and made money after charges."""
+    """
+    Measured on enough history, made money after charges, and — when the stress
+    test has been run — held up across time and beyond luck.
+    """
     st = stats.get(sig_name)
-    return bool(st and st.get("reliable") and st.get("expectancy_rupees", 0) > 0)
+    if not (st and st.get("reliable") and st.get("expectancy_rupees", 0) > 0):
+        return False
+    return st.get("robust", True)          # older stats.json files have no stress test
 
 
 def position_size(entry, stop, capital, risk_pct):
@@ -223,8 +228,8 @@ def main():
         print(f"({stale} stocks skipped: their data stops before {latest.date()}, "
               f"likely suspended or delisted)")
     if hidden:
-        print(f"({hidden} setups hidden: their rules lost money or lack enough history. "
-              f"--include-unproven shows them)")
+        print(f"({hidden} setups hidden: their rules lost money, lack enough history, or "
+              f"failed the stress test. --include-unproven shows them)")
     print()
     if not found:
         print("Nothing qualifies today. Do nothing. This is the correct output on most days.\n")
