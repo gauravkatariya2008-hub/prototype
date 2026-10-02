@@ -705,5 +705,289 @@ class TestStressTest(unittest.TestCase):
         self.assertFalse(scan.proven("r", {"r": dict(base, robust=False)}))
 
 
+def make_panel(closes, opens=None, volume=1e6, start="2018-01-01"):
+    """Wide price tables from {symbol: list of closes}. Opens default to the closes."""
+    n = len(next(iter(closes.values())))
+    idx = pd.bdate_range(start, periods=n)
+    close = pd.DataFrame({k: np.asarray(v, float) for k, v in closes.items()}, index=idx)
+    open_ = close.copy() if opens is None else pd.DataFrame(
+        {k: np.asarray(v, float) for k, v in opens.items()}, index=idx)
+    vol = volume if isinstance(volume, pd.DataFrame) else pd.DataFrame(volume, index=idx,
+                                                                         columns=close.columns)
+    return {"open": open_, "close": close, "volume": vol}
+
+
+def growth(rate, n, start=100.0):
+    return start * (1 + rate) ** np.arange(n)
+
+
+class TestPortfolio(unittest.TestCase):
+    def setUp(self):
+        import portfolio
+        import strategies
+        self.pf, self.st = portfolio, strategies
+
+    def test_rebalance_on_last_trading_day_of_month(self):
+        idx = pd.bdate_range("2021-01-01", "2021-03-31")
+        days = self.pf.rebalance_days(idx, "M")
+        self.assertEqual([d.date().isoformat() for d in days],
+                         ["2021-01-29", "2021-02-26", "2021-03-31"])
+
+    def test_momentum_buys_the_strongest_stock(self):
+        n = 400
+        panel = make_panel({"SLOW": growth(0.0002, n), "FAST": growth(0.002, n),
+                            "MID": growth(0.001, n), "NIFTYBEES": growth(0.0005, n)})
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=100000, top_n=1,
+                        min_turnover_cr=0.1)
+        bought = set(r.trades.loc[r.trades["side"] == "BUY", "symbol"])
+        self.assertEqual(bought, {"FAST"})
+
+    def test_trades_happen_at_the_next_days_open(self):
+        n = 400
+        opens = {k: v * 1.01 for k, v in {"FAST": growth(0.002, n), "SLOW": growth(0.0, n),
+                                          "NIFTYBEES": growth(0.0005, n)}.items()}
+        panel = make_panel({"FAST": growth(0.002, n), "SLOW": growth(0.0, n),
+                            "NIFTYBEES": growth(0.0005, n)}, opens=opens)
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=100000, top_n=1,
+                        min_turnover_cr=0.1)
+        idx = panel["close"].index
+        rebal = set(self.pf.rebalance_days(idx, "M"))
+        for t in r.trades.itertuples():
+            decision = idx[idx.get_loc(t.date) - 1]
+            self.assertIn(decision, rebal, "traded on a day that did not follow a decision")
+            self.assertAlmostEqual(t.price, panel["open"].loc[t.date, t.symbol])
+
+    def test_race_starts_when_the_strategy_can_first_decide(self):
+        """Fairness: no year in cash while the benchmark is already invested."""
+        n = 400
+        panel = make_panel({"FAST": growth(0.002, n), "NIFTYBEES": growth(0.0005, n)})
+        strat = self.st.STRATEGIES["momentum"]
+        r = self.pf.run(panel, strat, capital=100000, top_n=1, min_turnover_cr=0.1)
+        idx = panel["close"].index
+        self.assertGreaterEqual(idx.get_loc(r.equity.index[0]), strat.min_history)
+        first_buy = r.trades.iloc[0]["date"]
+        self.assertEqual(idx.get_loc(first_buy), idx.get_loc(r.equity.index[0]) + 1)
+
+    def test_no_look_ahead_in_any_strategy(self):
+        """A pick on day i must not change when every later day is deleted."""
+        panel = data.load_panel(demo=True, years=3, n_demo=25)
+        idx = panel["close"].index
+        for key, strat in self.st.STRATEGIES.items():
+            for i in (520, 600, 700):
+                full_ctx = self.st.Context(panel["close"], panel["open"], panel["volume"])
+                cut = {k: v.iloc[:i + 1] for k, v in panel.items()}
+                cut_ctx = self.st.Context(cut["close"], cut["open"], cut["volume"])
+                args = lambda c: (c.close.notna().cumsum(),
+                                  (c.close * c.volume).rolling(60, min_periods=40).median())
+                a = self.pf.pick(full_ctx, i, strat, 0.1, *args(full_ctx), strat.top_n)
+                b = self.pf.pick(cut_ctx, i, strat, 0.1, *args(cut_ctx), strat.top_n)
+                self.assertEqual(a, b, f"{key} at {idx[i].date()} used future prices")
+
+    def test_round_trip_cash_is_exact(self):
+        """Buy, then sell when the stock drops out: cash must match the arithmetic exactly."""
+        n = 420
+        a = np.r_[growth(0.002, 300), np.full(n - 300, growth(0.002, 300)[-1] * 0.7)]
+        b = np.r_[growth(0.0, 300), growth(0.003, n - 300, start=100.0)]
+        panel = make_panel({"A": a, "B": b, "NIFTYBEES": growth(0.0, n)})
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=100000, top_n=1,
+                        min_turnover_cr=0.1)
+        cash = 100000.0
+        for t in r.trades.itertuples():
+            cash += -(t.value + t.charges) if t.side == "BUY" else (t.value - t.charges)
+            expected = costs.trade_cost(t.value, "buy" if t.side == "BUY" else "sell")
+            self.assertAlmostEqual(t.charges, expected, places=6)
+        self.assertIn("SELL", set(r.trades["side"]))
+        # after the final trade, equity = cash + value of whatever is still held
+        still = {}
+        for t in r.trades.itertuples():
+            still[t.symbol] = still.get(t.symbol, 0) + (t.qty if t.side == "BUY" else -t.qty)
+        value = sum(q * panel["close"][s].iloc[-1] for s, q in still.items() if q)
+        self.assertAlmostEqual(r.equity.iloc[-1], cash + value, places=4)
+
+    def test_small_capital_cannot_buy_expensive_stocks(self):
+        n = 400
+        panel = make_panel({"A": growth(0.002, n, 5000), "B": growth(0.001, n, 6000),
+                            "NIFTYBEES": growth(0.0005, n, 250)})
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=2000, top_n=2,
+                        min_turnover_cr=0.1)
+        self.assertEqual(len(r.trades), 0)
+        self.assertGreater(r.metrics["unaffordable"], 0)
+        self.assertTrue((r.equity == 2000).all())
+
+    def test_never_puts_more_than_an_equal_share_into_one_stock(self):
+        """Rs 10,000 split two ways is Rs 5,000 each: a Rs 6,000 share must be skipped."""
+        n = 400
+        panel = make_panel({"A": growth(0.002, n, 6000), "B": growth(0.0015, n, 6000),
+                            "NIFTYBEES": growth(0.0005, n, 250)})
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=10000, top_n=2,
+                        min_turnover_cr=0.1)
+        self.assertEqual(len(r.trades), 0)
+        self.assertGreaterEqual(r.metrics["unaffordable"], 2)
+
+    def test_stock_strategies_never_hold_the_benchmark(self):
+        n = 400
+        rng = np.random.default_rng(3)
+        noisy = lambda: 100 * np.exp(np.cumsum(rng.normal(0, 0.02, n)))
+        panel = make_panel({"A": noisy(), "B": noisy(), "NIFTYBEES": growth(0.0003, n)})
+        r = self.pf.run(panel, self.st.STRATEGIES["low_vol"], capital=100000, top_n=1,
+                        min_turnover_cr=0.1)
+        self.assertNotIn("NIFTYBEES", set(r.trades["symbol"]))
+        self.assertGreater(len(r.trades), 0)
+
+    def test_liquidity_is_judged_point_in_time(self):
+        n = 600
+        idx = pd.bdate_range("2018-01-01", periods=n)
+        vol = pd.DataFrame(1e6, index=idx, columns=["THIN", "OK", "NIFTYBEES"])
+        vol.loc[idx[:400], "THIN"] = 10                       # untradeable for its first 400 days
+        panel = make_panel({"THIN": growth(0.003, n), "OK": growth(0.001, n),
+                            "NIFTYBEES": growth(0.0005, n)}, volume=vol)
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=100000, top_n=1,
+                        min_turnover_cr=0.5)
+        buys = r.trades[r.trades["side"] == "BUY"]
+        first_thin = buys.loc[buys["symbol"] == "THIN", "date"].min()
+        self.assertEqual(buys.iloc[0]["symbol"], "OK")
+        self.assertGreater(first_thin, idx[400])              # bought only once it was liquid
+
+    def test_index_trend_moves_to_cash_below_the_average(self):
+        n = 520
+        path = np.r_[growth(0.002, 400, 100), growth(-0.01, n - 400, growth(0.002, 400, 100)[-1])]
+        panel = make_panel({"NIFTYBEES": path, "X": growth(0.0, n)})
+        r = self.pf.run(panel, self.st.STRATEGIES["index_trend"], capital=100000,
+                        min_turnover_cr=0.1)
+        sides = list(r.trades["side"])
+        self.assertEqual(sides[0], "BUY")
+        self.assertEqual(sides[-1], "SELL")
+        held_at_end = r.equity.iloc[-1] - r.equity.iloc[-2]
+        self.assertAlmostEqual(held_at_end, 0.0, places=6)      # all cash: value stops moving
+        nb = r.trades[r.trades["symbol"] == "NIFTYBEES"].iloc[0]
+        self.assertAlmostEqual(nb["charges"], costs.trade_cost(nb["value"], "buy", etf=True))
+
+    def test_benchmark_starts_with_the_strategy(self):
+        n = 400
+        panel = make_panel({"A": growth(0.002, n), "NIFTYBEES": growth(0.001, n, 250)})
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=100000, top_n=1,
+                        min_turnover_cr=0.1)
+        self.assertEqual(r.benchmark.iloc[0], 100000)
+        self.assertEqual(r.benchmark.index[0], r.equity.index[0])
+        day1 = r.benchmark.index[1]
+        price = panel["open"].loc[day1, "NIFTYBEES"]
+        units = int(100000 * (1 - self.pf.BUY_BUFFER) // price)
+        fee = costs.trade_cost(units * price, "buy", etf=True)
+        expected = 100000 - units * price - fee + units * panel["close"].loc[day1, "NIFTYBEES"]
+        self.assertAlmostEqual(r.benchmark.iloc[1], expected, places=6)
+
+    def test_cagr_and_drawdown_known_answers(self):
+        idx = pd.DatetimeIndex(["2020-01-01", "2020-12-31"])
+        days = (idx[1] - idx[0]).days
+        s = pd.Series([100.0, 100 * 2 ** (days / 365.25)], index=idx)
+        self.assertAlmostEqual(self.pf.cagr(s), 1.0, places=9)
+        dd = pd.Series([100, 120, 60, 90.0], index=pd.bdate_range("2020-01-01", periods=4))
+        self.assertAlmostEqual(self.pf.max_drawdown(dd), -0.5)
+
+    def test_verdict_requires_a_steady_lead(self):
+        idx = pd.bdate_range("2018-01-01", "2025-12-31")
+        rng = np.random.default_rng(5)
+        bench = pd.Series(100 * np.exp(np.cumsum(rng.normal(0.0004, 0.01, len(idx)))), index=idx)
+        steady = bench * np.exp(np.arange(len(idx)) * 0.0004)            # +~10%/yr, every month
+        yearly = self.pf.yearly_returns(steady, bench)
+        self.assertTrue(self.pf.judge(steady, bench, yearly)["beats_benchmark"])
+        same = self.pf.judge(bench.copy(), bench, self.pf.yearly_returns(bench.copy(), bench))
+        self.assertFalse(same["beats_benchmark"])
+        self.assertTrue(any("could be luck" in x for x in same["reasons"]))
+
+    def test_verdict_rejects_a_lead_from_a_few_big_years(self):
+        """Passes on average and on confidence, but beat the index in only 2 of 6 full years."""
+        idx = pd.bdate_range("2018-01-01", "2025-12-31")
+        bench = pd.Series(100 * np.exp(np.arange(len(idx)) * 0.0003), index=idx)
+        big = idx.year.isin([2018, 2020, 2023, 2025])
+        excess = np.where(big, 0.002, -0.0001)
+        strat = bench * np.exp(np.cumsum(excess))
+        v = self.pf.judge(strat, bench, self.pf.yearly_returns(strat, bench))
+        self.assertFalse(v["beats_benchmark"])
+        self.assertEqual(len(v["reasons"]), 1, v["reasons"])
+        self.assertIn("only 2 of 6 full years", v["reasons"][0])
+
+    def test_mean_reversion_only_buys_dips_in_uptrends(self):
+        n = 260
+        up_then_dip = np.r_[growth(0.003, n - 5), growth(0.003, n - 5)[-1] * np.array(
+            [0.98, 0.96, 0.95, 0.94, 0.93])]
+        down_then_dip = np.r_[growth(-0.002, n - 5), growth(-0.002, n - 5)[-1] * np.array(
+            [0.97, 0.94, 0.92, 0.90, 0.88])]
+        panel = make_panel({"UP": up_then_dip, "DOWN": down_then_dip, "NIFTYBEES": growth(0, n)})
+        ctx = self.st.Context(panel["close"], panel["open"], panel["volume"])
+        scores = self.st.mean_reversion_score(ctx, n - 1)
+        self.assertFalse(np.isnan(scores["UP"]))          # fell, but still above its 200-day average
+        self.assertTrue(np.isnan(scores["DOWN"]))         # fell further, but in a downtrend
+
+    def test_unsellable_day_retries_next_day(self):
+        n = 420
+        a = np.r_[growth(0.002, 300), np.full(n - 300, growth(0.002, 300)[-1] * 0.7)]
+        b = np.r_[growth(0.0, 300), growth(0.003, n - 300)]
+        panel = make_panel({"A": a, "B": b, "NIFTYBEES": growth(0.0, n)})
+        clean = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=100000, top_n=1,
+                            min_turnover_cr=0.1)
+        sell = clean.trades[(clean.trades["symbol"] == "A") & (clean.trades["side"] == "SELL")].iloc[0]
+        panel["open"].loc[sell["date"], "A"] = np.nan             # no trading in A that day
+        r = self.pf.run(panel, self.st.STRATEGIES["momentum"], capital=100000, top_n=1,
+                        min_turnover_cr=0.1)
+        retry = r.trades[(r.trades["symbol"] == "A") & (r.trades["side"] == "SELL")].iloc[0]
+        nxt = panel["close"].index[panel["close"].index.get_loc(sell["date"]) + 1]
+        self.assertEqual(retry["date"], nxt)
+
+
+class TestDashboardAndPanel(unittest.TestCase):
+    def test_panel_loads_real_cache_with_benchmark_and_reuses_pickle(self):
+        import tempfile
+        import pathlib
+        frames = data.demo_frames(n_symbols=3, years=2, seed=12)
+        frames["NIFTYBEES"] = data.demo_benchmark(frames)
+        original = (data.CACHE, data.PANEL_CACHE, universe.load_symbols)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                data.CACHE = pathlib.Path(tmp)
+                data.PANEL_CACHE = data.CACHE / "_panel.pkl"
+                for sym, df in frames.items():
+                    df.rename_axis("Date").to_csv(data.CACHE / f"{sym}.csv")
+                universe.load_symbols = lambda refresh=False: ["DEMO1", "DEMO2", "DEMO3"]
+                panel = data.load_panel()
+                self.assertEqual(set(panel["close"].columns), set(frames))   # benchmark added
+                self.assertTrue(data.PANEL_CACHE.exists())
+                again = data.load_panel()                                     # from the pickle
+                self.assertTrue(again["close"].equals(panel["close"]))
+        finally:
+            data.CACHE, data.PANEL_CACHE, universe.load_symbols = original
+
+    @unittest.skipUnless(__import__("importlib").util.find_spec("streamlit"),
+                         "streamlit not installed")
+    def test_dashboard_runs_every_strategy_without_errors(self):
+        import os
+        from streamlit.testing.v1 import AppTest
+        os.environ["LAB_FORCE_DEMO"] = "1"
+        try:
+            at = AppTest.from_file("app.py", default_timeout=180).run()
+            self.assertEqual([e.value for e in at.exception], [])
+            self.assertEqual([t.label for t in at.tabs],
+                             ["Strategy Lab", "Candlestick rules", "Today's scan", "Limits"])
+            for label in ["Low volatility", "Short-term mean reversion", "Index trend following"]:
+                at.selectbox[0].set_value(label)
+                at.button[0].click().run()
+                self.assertEqual([e.value for e in at.exception], [], label)
+                verdicts = [x.value for x in list(at.success) + list(at.error)]
+                self.assertTrue(any("NIFTYBEES" in v for v in verdicts), label)
+        finally:
+            del os.environ["LAB_FORCE_DEMO"]
+
+    def test_no_order_placing_code_anywhere(self):
+        """The lab is research-only: no broker API, no order functions, anywhere."""
+        import pathlib
+        banned = ("kiteconnect", "place_order", "KiteConnect", "modify_order")
+        for f in pathlib.Path(".").glob("*.py"):
+            if f.name == "tests.py":
+                continue
+            text = f.read_text()
+            for word in banned:
+                self.assertNotIn(word, text, f"{f.name} contains {word}")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

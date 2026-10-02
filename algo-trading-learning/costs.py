@@ -14,13 +14,18 @@ SEBI_FEE = 10 / 1e7              # Rs 10 per crore
 STAMP_DUTY_BUY = 0.00015         # 0.015% on buy side only
 GST = 0.18                       # on brokerage + exchange + SEBI fees
 DP_CHARGE_PER_SELL = 15.34       # flat depository charge each time you sell a stock
+ETF_STT_SELL = 0.00001           # equity ETFs (like NIFTYBEES): 0.001% on sell, nothing on buy
 
 
-def trade_cost(value, side):
-    """Approximate total charges (in Rs) for buying or selling `value` rupees of stock."""
+def trade_cost(value, side, etf=False):
+    """
+    Approximate total charges (in Rs) for buying or selling `value` rupees of stock.
+    etf=True uses the much lower securities transaction tax on equity ETFs.
+    """
     exchange = value * EXCHANGE_TXN
     sebi = value * SEBI_FEE
-    cost = value * STT + exchange + sebi + (BROKERAGE + exchange + sebi) * GST
+    stt = (ETF_STT_SELL if side == "sell" else 0.0) if etf else STT
+    cost = value * stt + exchange + sebi + (BROKERAGE + exchange + sebi) * GST
     if side == "buy":
         cost += value * STAMP_DUTY_BUY
     else:

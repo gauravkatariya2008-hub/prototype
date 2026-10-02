@@ -86,6 +86,26 @@ def fresh_frames(frames):
     return kept, len(frames) - len(kept), latest
 
 
+def find_setups(frames, stats, include_unproven=False):
+    """
+    Today's setups, best first, as (score, symbol, df, signals). Unless
+    include_unproven, only rules with a proven record are kept (when stats exist).
+    Returns (setups, number of setups hidden by that filter).
+    """
+    filter_proven = bool(stats) and not include_unproven
+    found, hidden = [], 0
+    for sym, df in frames.items():
+        sigs = signals.detect_all(df, len(df) - 1)
+        if filter_proven:
+            kept = [s for s in sigs if proven(s["signal"], stats)]
+            hidden += len(sigs) - len(kept)
+            sigs = kept
+        if sigs:
+            found.append((score(sigs, stats), sym, df, sigs))
+    found.sort(key=lambda t: -t[0])
+    return found, hidden
+
+
 def describe(symbol, df, sigs, stats, notional, capital, risk_pct, min_turnover, rank=None):
     head = f"{rank}. " if rank else ""
     names = " + ".join(s["signal"] for s in sigs)
@@ -186,6 +206,8 @@ def main():
         syms = ([args.symbol] if args.symbol else
                 args.symbols.split(",") if args.symbols else
                 universe.load_symbols(refresh=args.refresh_universe))
+        if not (args.symbol or args.symbols) and data.BENCHMARK not in syms:
+            syms = list(syms) + [data.BENCHMARK]     # the research lab compares against it
         print(f"Updating prices for {len(syms)} symbols. This takes a while for the full list.")
         ok, failed = data.update_cache(syms, years=args.years)
         print(f"Done: {ok} cached, {failed} unavailable.\n")
@@ -207,17 +229,7 @@ def main():
     if not frames:
         raise SystemExit("No stocks passed the filters. Run with --update, or lower --min-turnover.")
 
-    filter_proven = bool(stats) and not args.include_unproven
-    found, hidden = [], 0
-    for sym, df in frames.items():
-        sigs = signals.detect_all(df, len(df) - 1)
-        if filter_proven:
-            kept = [s for s in sigs if proven(s["signal"], stats)]
-            hidden += len(sigs) - len(kept)
-            sigs = kept
-        if sigs:
-            found.append((score(sigs, stats), sym, df, sigs))
-    found.sort(key=lambda t: -t[0])
+    found, hidden = find_setups(frames, stats, include_unproven=args.include_unproven)
 
     if not stats:
         print(f"\nUNMEASURED SETUPS FOR {latest.date()} — NOT RECOMMENDATIONS")

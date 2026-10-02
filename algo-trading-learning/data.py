@@ -136,3 +136,59 @@ def load_frames(symbols=None, years=8, demo=False, min_turnover_cr=None, quiet=F
             continue
         out[sym] = with_ind
     return out
+
+
+# --- whole-portfolio data (used by the strategy lab) -------------------------
+
+BENCHMARK = "NIFTYBEES"     # the bar every strategy must beat: just buy the Nifty 50 and hold
+PANEL_CACHE = CACHE / "_panel.pkl"
+
+
+def demo_benchmark(frames):
+    """A synthetic 'index': the average of the demo stocks, priced like NIFTYBEES."""
+    closes = pd.DataFrame({s: f["Close"] / f["Close"].iloc[0] for s, f in frames.items()})
+    level = 250 * closes.mean(axis=1)
+    rng = np.random.default_rng(99)
+    open_ = level * (1 + rng.normal(0, 0.002, len(level)))
+    return pd.DataFrame({"Open": open_, "High": np.maximum(open_, level) * 1.003,
+                         "Low": np.minimum(open_, level) * 0.997, "Close": level,
+                         "Volume": np.full(len(level), 5e6)}, index=level.index)
+
+
+def _panel_from(frames):
+    return {field: pd.DataFrame({s: f[col] for s, f in frames.items()}).sort_index()
+            for field, col in (("open", "Open"), ("close", "Close"), ("volume", "Volume"))}
+
+
+def load_panel(symbols=None, demo=False, years=8, n_demo=40):
+    """
+    Wide tables (dates down, stocks across) of open, close and volume, plus the
+    benchmark. Real data comes from the cache; a pickled copy is reused until any
+    cached CSV changes, because reading 2,000+ files takes a while.
+    """
+    if demo:
+        frames = demo_frames(n_symbols=n_demo, years=years)
+        frames[BENCHMARK] = demo_benchmark(frames)
+        return _panel_from(frames)
+
+    csvs = list(CACHE.glob("*.csv"))
+    if not csvs:
+        return None
+    full_universe = symbols is None
+    if full_universe and PANEL_CACHE.exists():
+        newest = max(p.stat().st_mtime for p in csvs)
+        if PANEL_CACHE.stat().st_mtime >= newest:
+            return pd.read_pickle(PANEL_CACHE)
+
+    wanted = set(symbols or universe.load_symbols()) | {BENCHMARK}
+    frames = {}
+    for sym in wanted:
+        df = read_cached(sym)
+        if df is not None and not df.empty:
+            frames[sym] = df
+    if not frames:
+        return None
+    panel = _panel_from(frames)
+    if full_universe:
+        pd.to_pickle(panel, PANEL_CACHE)
+    return panel

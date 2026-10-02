@@ -1,13 +1,19 @@
-# Swing-Trade Scanner for NSE Stocks
+# NSE Strategy Research Lab
 
-A learning tool. It **never places orders** and never touches your Zerodha login.
+A research tool. It **never places orders**, never touches your Zerodha login, and contains no order-placing code at all (a test checks this).
 
-It checks written-down trading rules against NSE stocks every evening. For each setup it finds, it shows you **how that exact rule performed on years of past data, after Zerodha charges**. It doesn't predict the future and doesn't promise profit. It tells you the measured odds, so you can decide.
+It has two parts:
+- **A Streamlit dashboard** (`app.py`). It tests portfolio strategies (momentum, low volatility, index trend, mean reversion) against the only bar that matters: **does it beat simply buying NIFTYBEES and holding it?**
+- **A candlestick scanner** (`scan.py`, `evaluate.py`). It checks written-down trading rules against NSE stocks every evening. For each setup it finds, it shows you **how that exact rule performed on years of past data, after Zerodha charges**. It doesn't predict the future and doesn't promise profit. It tells you the measured odds, so you can decide.
 
 ## What's in here
 
 | File | What it does |
 |---|---|
+| `app.py` | The dashboard: Strategy Lab, candlestick results, today's scan, limits |
+| `portfolio.py` | Portfolio backtest engine: next-day execution, whole shares, charges, benchmark, verdict |
+| `strategies.py` | Momentum, low volatility, index trend, mean reversion. Each only ranks stocks |
+| `requirements.txt` | Everything to install, in one line |
 | `scan.py` | Today's top setups, or analyses one stock you name |
 | `evaluate.py` | Measures every rule on past data: win rate, average win and loss, profit after charges |
 | `signals.py` | The rules as code. Every threshold is a named number at the top |
@@ -15,21 +21,41 @@ It checks written-down trading rules against NSE stocks every evening. For each 
 | `costs.py` | Zerodha delivery charges (STT, stamp duty, exchange fees, DP charge) |
 | `data.py`, `universe.py` | Price downloads, the local price cache and the liquidity filter |
 | `backtest.py` | The simpler moving-average backtester from earlier |
-| `tests.py` | 65 tests. Run them after changing anything |
+| `tests.py` | 85 tests. Run them after changing anything |
 
 ## Setup (once)
 
 You need Python 3.
 
 ```bash
-pip install pandas yfinance requests
-python scan.py --update --refresh-universe   # downloads all NSE stocks, ~10-20 minutes
+pip install -r requirements.txt
+python scan.py --update --refresh-universe   # downloads all NSE stocks + NIFTYBEES, ~10-20 minutes
 python evaluate.py                           # measures every rule on the history
 ```
 
 `evaluate.py` uses all but one of your CPU cores and prints progress every 50 stocks. It saves every simulated trade to `trades.csv`. After that, `python evaluate.py --from-trades` re-analyses them in seconds without replaying anything.
 
 Try it without internet first with `python evaluate.py --demo` and `python scan.py --demo`. These use made-up prices.
+
+## The dashboard
+
+```bash
+streamlit run app.py
+```
+
+It opens in your browser. The first load of the full NSE list takes a minute; after that it's fast.
+
+- **Strategy Lab:** pick a strategy, run it, and get a verdict: does it beat NIFTYBEES or not, and why. You also get its value over time against NIFTYBEES, falls from peak, year by year, and what happens at **your** capital.
+- **Candlestick rules:** the results of `evaluate.py`, including the stress test.
+- **Today's scan:** setups from rules that passed testing (none have, so far).
+- **Limits:** what the numbers can and can't tell you.
+
+A strategy only gets "Beats NIFTYBEES" if all three are true:
+- it did better **both before and after** the split date,
+- its monthly lead is **confident** (at least 2 standard errors),
+- it beat NIFTYBEES in **60%+ of full years**.
+
+The engine trades at the next day's open, buys whole shares, pays Zerodha charges (ETFs at their lower tax rate), judges liquidity on the 60 days before each decision, and keeps NIFTYBEES out of stock strategies. The race only starts once a strategy has enough history to decide, so it never sits in cash while the benchmark is invested.
 
 ## Every day, in the evening after the market closes
 
@@ -80,7 +106,8 @@ By default the scanner **only shows setups from rules that were tested on at lea
 - **Predict anything.** Every number is historical. Markets change, and a rule that worked for 8 years can stop working.
 - **Undo bias in the data.** Past prices only exist for companies still listed today. Delisted failures are missing, so results look better than reality.
 - **Promise that a profitable-historically rule will make you money.** It means the odds leaned your way in the past, nothing more.
-- **Trade intraday.** That needs live data (Kite Connect, about ₹2,000/month). This tool is for trades held for days.
+- **Trade intraday.** That needs live data from a paid broker API. This tool is for trades held for days or longer.
+- **Count income tax.** Frequent trading pays 20% short-term capital gains tax, while holding NIFTYBEES over a year pays 12.5% above ₹1.25 lakh. That gap favours buy-and-hold even more than the numbers show.
 - **See real data in the environment where it was built.** Yahoo Finance was blocked there, so it was tested on synthetic and simulated data. The first run on real prices happens on your machine.
 
 ## Checks built in (so the numbers can be trusted)
