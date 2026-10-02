@@ -3,3 +3,5 @@ stats.json
 __pycache__/
 *.pyc
 trades.csv
+industries.csv
+symbols.csv

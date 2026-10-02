@@ -967,7 +967,8 @@ class TestDashboardAndPanel(unittest.TestCase):
             at = AppTest.from_file("app.py", default_timeout=180).run()
             self.assertEqual([e.value for e in at.exception], [])
             self.assertEqual([t.label for t in at.tabs],
-                             ["Strategy Lab", "Candlestick rules", "Today's scan", "Limits"])
+                             ["Today's picks", "Strategy Lab", "Candlestick rules",
+                              "Today's scan", "Limits"])
             for label in ["Low volatility", "Short-term mean reversion", "Index trend following"]:
                 at.selectbox[0].set_value(label)
                 at.button[0].click().run()
@@ -987,6 +988,193 @@ class TestDashboardAndPanel(unittest.TestCase):
             text = f.read_text()
             for word in banned:
                 self.assertNotIn(word, text, f"{f.name} contains {word}")
+
+
+GOOGLE_RSS = """<?xml version="1.0"?><rss><channel>
+<item><title>Crude oil jumps 4% as Middle East conflict widens - Economic Times</title>
+<link>https://example.com/a</link><pubDate>Fri, 02 Oct 2026 08:00:00 GMT</pubDate>
+<source url="https://economictimes.com">Economic Times</source></item>
+<item><title>RBI keeps repo rate unchanged - CNBC TV18</title>
+<link>https://example.com/b</link><pubDate>Fri, 02 Oct 2026 06:00:00 GMT</pubDate>
+<source url="https://cnbctv18.com">CNBC TV18</source></item>
+<item><title>Company wins award for design - Mint</title>
+<link>https://example.com/c</link><pubDate>Fri, 02 Oct 2026 05:00:00 GMT</pubDate>
+<source url="https://livemint.com">Mint</source></item>
+</channel></rss>"""
+
+PUBLISHER_RSS = """<?xml version="1.0"?><rss><channel>
+<item><title>Sensex - Nifty end flat; IT stocks gain as rupee weakens</title>
+<link>https://example.com/d</link><pubDate>Fri, 02 Oct 2026 10:00:00 GMT</pubDate></item>
+</channel></rss>"""
+
+
+class TestNews(unittest.TestCase):
+    def setUp(self):
+        import news
+        self.news = news
+
+    def test_google_news_titles_lose_the_publisher_suffix(self):
+        items = self.news.parse_feed(GOOGLE_RSS)
+        self.assertEqual(items[0]["title"], "Crude oil jumps 4% as Middle East conflict widens")
+        self.assertEqual(items[0]["source"], "Economic Times")
+        self.assertEqual(str(items[0]["published"].tz), "Asia/Kolkata")
+
+    def test_publisher_titles_keep_their_dashes(self):
+        items = self.news.parse_feed(PUBLISHER_RSS, source="Mint Markets")
+        self.assertEqual(items[0]["title"], "Sensex - Nifty end flat; IT stocks gain as rupee weakens")
+        self.assertEqual(items[0]["source"], "Mint Markets")
+
+    def test_broken_feed_gives_nothing_instead_of_crashing(self):
+        self.assertEqual(self.news.parse_feed("<html>not rss"), [])
+
+    def test_sector_tags(self):
+        tags = lambda t: [s for s, _ in self.news.tag_sectors(t)]
+        self.assertIn("Oil Gas & Consumable Fuels", tags("Crude oil jumps on OPEC cut"))
+        self.assertIn(self.news.ALL, tags("Missile attack raises border tension"))
+        self.assertIn("Financial Services", tags("RBI keeps repo rate unchanged"))
+        self.assertIn("Information Technology", tags("IT stocks gain as rupee weakens"))
+        self.assertEqual(tags("Company wins award for design"), [])      # 'war' inside 'award'
+        self.assertEqual(tags("Bank shares rally"), [])                   # 'ban' inside 'bank'
+
+    def test_red_flags(self):
+        self.assertEqual(self.news.red_flags("SEBI bans promoter over fraud"),
+                         ["regulator", "fraud or governance"])
+        self.assertEqual(self.news.red_flags("TCS Q2 results: net profit rises"), ["results"])
+        self.assertEqual(self.news.red_flags("Bank shares rally on strong demand"), [])
+
+    def test_market_news_survives_failing_feeds_and_dedupes(self):
+        def fake(url):
+            if "economictimes" in url:
+                raise ConnectionError("down")
+            return GOOGLE_RSS if "news.google.com" in url else PUBLISHER_RSS
+        df, failed = self.news.market_news(fetcher=fake, max_age_days=None)
+        self.assertEqual(len(df), 4)                       # 3 unique Google items + 1 publisher
+        self.assertTrue(any("Economic Times Markets" in f for f in failed))
+        self.assertEqual(list(df["published"]), sorted(df["published"], reverse=True))
+
+    def test_news_for_industry_includes_market_wide_items(self):
+        df, _ = self.news.market_news(fetcher=lambda u: GOOGLE_RSS, max_age_days=None)
+        it = self.news.news_for_industry(df, "Information Technology")
+        self.assertIn("Crude oil jumps 4% as Middle East conflict widens", list(it["title"]))
+        self.assertNotIn("Company wins award for design", list(it["title"]))
+
+    def test_company_news_marks_flags(self):
+        rss = GOOGLE_RSS.replace("RBI keeps repo rate unchanged", "SEBI probes XYZ Ltd")
+        df, _ = self.news.company_news("XYZ", "XYZ Ltd", fetcher=lambda u: rss, max_age_days=None)
+        self.assertEqual(df.loc[df["title"] == "SEBI probes XYZ Ltd", "flags"].iloc[0],
+                         ["regulator"])
+
+
+class TestPicks(unittest.TestCase):
+    def setUp(self):
+        import picks
+        import portfolio
+        self.picks, self.pf = picks, portfolio
+
+    def test_minimum_position_keeps_charges_under_one_percent(self):
+        floor = self.picks.min_position()
+        self.assertLessEqual(costs.round_trip_cost(floor, floor) / floor, 0.01)
+        self.assertGreater(costs.round_trip_cost(floor - 50, floor - 50) / (floor - 50), 0.01)
+
+    def test_small_budget_goes_to_niftybees(self):
+        prices = {"A": 100.0, "B": 200.0, "NIFTYBEES": 250.0}
+        rows, cash, note = self.picks.plan_budget(2000, ["A", "B"], prices)
+        self.assertEqual([r["symbol"] for r in rows], ["NIFTYBEES"])
+        self.assertEqual(rows[0]["qty"], 7)
+        self.assertIn("too small", note)
+        self.assertAlmostEqual(rows[0]["buy_charges"],
+                               costs.trade_cost(7 * 250.0, "buy", etf=True))
+
+    def test_mid_budget_is_split_into_positions_that_fit(self):
+        """Rs 10,000 with Rs 100 shares: 3 positions of ~Rs 3,300, not 5 that are too small."""
+        prices = {f"S{i}": 100.0 for i in range(10)} | {"NIFTYBEES": 250.0}
+        rows, cash, _ = self.picks.plan_budget(10000, [f"S{i}" for i in range(10)], prices)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual([r["qty"] for r in rows], [33, 33, 33])
+        self.assertLess(cash, 200)
+
+    def test_awkwardly_priced_stock_is_skipped_not_bought_too_small(self):
+        """Rs 6,000 -> 2 slots of Rs 3,000. One Rs 1,600 share is under the Rs 1,973 minimum."""
+        prices = {"AWKWARD": 1600.0, "S1": 100.0, "S2": 100.0, "NIFTYBEES": 250.0}
+        rows, _, _ = self.picks.plan_budget(6000, ["AWKWARD", "S1", "S2"], prices)
+        self.assertEqual([r["symbol"] for r in rows], ["S1", "S2"])
+
+    def test_no_passing_strategy_means_niftybees(self):
+        rows, _, note = self.picks.plan_budget(100000, [], {"NIFTYBEES": 250.0})
+        self.assertEqual(rows[0]["symbol"], "NIFTYBEES")
+        self.assertIn("No strategy beat NIFTYBEES", note)
+
+    def test_every_stock_position_clears_the_minimum_and_budget(self):
+        rng = np.random.default_rng(8)
+        floor = self.picks.min_position()
+        for budget in (5000, 10000, 23000, 50000, 200000):
+            ranked = [f"S{i}" for i in range(30)]
+            prices = {s: float(rng.uniform(50, 6000)) for s in ranked}
+            prices["NIFTYBEES"] = 250.0
+            rows, cash, _ = self.picks.plan_budget(budget, ranked, prices)
+            spent = sum(r["cost"] + r["buy_charges"] for r in rows)
+            self.assertAlmostEqual(spent + cash, budget, places=6)
+            self.assertLessEqual(len(rows), 5)
+            for r in rows:
+                if r["symbol"] != "NIFTYBEES":
+                    self.assertGreaterEqual(r["cost"], floor, (budget, r))
+
+    def test_strategy_choice_requires_passing_and_prefers_confidence(self):
+        from types import SimpleNamespace as NS
+        def res(beats, t):
+            return NS(verdict={"beats_benchmark": beats, "t": t, "reasons": []},
+                      metrics={"cagr": 0.1, "bench_cagr": 0.08})
+        best, _ = self.picks.choose_strategy({"momentum": res(True, 2.1), "low_vol": res(True, 2.9),
+                                              "mean_reversion": res(False, 5.0)})
+        self.assertEqual(best, "low_vol")
+        none, _ = self.picks.choose_strategy({"momentum": res(False, 1.0)})
+        self.assertIsNone(none)
+
+    def test_current_picks_match_the_engines_choice(self):
+        n = 400
+        panel = make_panel({"SLOW": growth(0.0002, n), "FAST": growth(0.002, n),
+                            "MID": growth(0.001, n), "NIFTYBEES": growth(0.0005, n)})
+        self.assertEqual(self.picks.current_picks(panel, "momentum", 0.1, n=2), ["FAST", "MID"])
+
+    def test_hold_or_sell(self):
+        held = pd.DataFrame({"symbol": ["fast.ns", "SLOW", "NIFTYBEES", "GONE", None],
+                             "qty": [10, 5, 7, 3, None], "buy_price": [100, 100, 250, 50, None]})
+        prices = {"FAST": 120.0, "SLOW": 90.0, "NIFTYBEES": 260.0}
+        out = self.picks.review_holdings(held, prices, keep=["FAST"], key="momentum").set_index("symbol")
+        self.assertTrue(out.loc["FAST", "action"].startswith("HOLD"))
+        self.assertTrue(out.loc["SLOW", "action"].startswith("SELL"))
+        self.assertTrue(out.loc["NIFTYBEES", "action"].startswith("HOLD"))
+        self.assertIn("No price data", out.loc["GONE", "action"])
+        self.assertAlmostEqual(out.loc["FAST", "profit_after_sell_charges"],
+                               1200 - 1000 - costs.trade_cost(1200, "sell"))
+        no_strategy = self.picks.review_holdings(held, prices, keep=None, key=None)
+        self.assertIn("No tested strategy", no_strategy.set_index("symbol").loc["FAST", "action"])
+
+    @unittest.skipUnless(__import__("importlib").util.find_spec("streamlit"),
+                         "streamlit not installed")
+    def test_picks_tab_when_a_strategy_passes(self):
+        """Force a pass so the picks, plan and news-free layout are exercised."""
+        import os
+        import picks
+        from streamlit.testing.v1 import AppTest
+        original = picks.choose_strategy
+        def forced(results):
+            _, rows = original(results)
+            for r in rows:
+                r["beats"] = r["key"] == "momentum"
+            return "momentum", rows
+        picks.choose_strategy = forced
+        os.environ["LAB_FORCE_DEMO"] = "1"
+        try:
+            at = AppTest.from_file("app.py", default_timeout=240)
+            at.run()
+            self.assertEqual([e.value for e in at.exception], [])
+            tab = at.tabs[0]
+            self.assertTrue(any("Using **Momentum**" in x.value for x in tab.success))
+            self.assertTrue(any(m.value.startswith("### Top 5") for m in tab.markdown))
+        finally:
+            picks.choose_strategy = original
+            del os.environ["LAB_FORCE_DEMO"]
 
 
 if __name__ == "__main__":

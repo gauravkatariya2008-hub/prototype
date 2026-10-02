@@ -13,6 +13,8 @@ It has two parts:
 | `app.py` | The dashboard: Strategy Lab, candlestick results, today's scan, limits |
 | `portfolio.py` | Portfolio backtest engine: next-day execution, whole shares, charges, benchmark, verdict |
 | `strategies.py` | Momentum, low volatility, index trend, mean reversion. Each only ranks stocks |
+| `picks.py` | Today's picks, the budget plan and the hold-or-sell check |
+| `news.py` | Market, geopolitical and company news, tagged with the industries it can move |
 | `requirements.txt` | Everything to install, in one line |
 | `scan.py` | Today's top setups, or analyses one stock you name |
 | `evaluate.py` | Measures every rule on past data: win rate, average win and loss, profit after charges |
@@ -21,7 +23,7 @@ It has two parts:
 | `costs.py` | Zerodha delivery charges (STT, stamp duty, exchange fees, DP charge) |
 | `data.py`, `universe.py` | Price downloads, the local price cache and the liquidity filter |
 | `backtest.py` | The simpler moving-average backtester from earlier |
-| `tests.py` | 85 tests. Run them after changing anything |
+| `tests.py` | 103 tests. Run them after changing anything |
 
 ## Setup (once)
 
@@ -45,10 +47,29 @@ streamlit run app.py
 
 It opens in your browser. The first load of the full NSE list takes a minute; after that it's fast.
 
+- **Today's picks:** the top 5 stocks right now, a plan for your budget, a hold-or-sell check on what you own, and news that can move prices (details below).
 - **Strategy Lab:** pick a strategy, run it, and get a verdict: does it beat NIFTYBEES or not, and why. You also get its value over time against NIFTYBEES, falls from peak, year by year, and what happens at **your** capital.
 - **Candlestick rules:** the results of `evaluate.py`, including the stress test.
 - **Today's scan:** setups from rules that passed testing (none have, so far).
 - **Limits:** what the numbers can and can't tell you.
+
+### Today's picks
+
+- **Which strategy picks them.** The app tests the **5-stock version** of every strategy on your data, because 5 stocks is what you'd actually hold. Only a strategy that beats NIFTYBEES may make picks, and the most confident one wins. **If none passes, it recommends NIFTYBEES and makes no stock picks.** That's the expected result, not a fault.
+- **Budget plan.** Your budget from the sidebar is split into whole shares. Every stock position must be at least about ₹2,000, so that buying and selling costs under 1% of it. Too small a budget means NIFTYBEES instead.
+- **Hold or sell.** Type in what you own. It shows your profit after selling charges and what the strategy's own rule says: hold while the stock stays in its top list, sell when it drops out at the next review.
+- **News.** Switch it on to fetch:
+  - newspapers (Economic Times, Mint, Moneycontrol, Business Standard),
+  - business TV channels' web stories, via Google News,
+  - searches on what moves Indian markets: RBI, crude oil, the rupee, the US Fed, tariffs, conflicts, foreign investors and the budget.
+
+  Each headline is tagged with the NSE industries it can move, using plain keyword rules in `news.py`. Company headlines are checked for red flags: SEBI action, fraud, defaults and results days.
+
+  **News is a warning system, not a stock picker.** By the time a headline reaches you, big funds have already traded on it, and news-based picks can't be tested on past prices. X/Twitter isn't included because its data is paid and scraping breaks its rules, and live TV broadcasts can't be read.
+
+Industry names come from NSE's Nifty 500 list, fetched by `python scan.py --refresh-universe`.
+
+### How a strategy is judged
 
 A strategy only gets "Beats NIFTYBEES" if all three are true:
 - it did better **both before and after** the split date,

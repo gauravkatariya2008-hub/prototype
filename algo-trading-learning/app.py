@@ -18,6 +18,8 @@ import streamlit as st
 
 import data
 import evaluate
+import news
+import picks
 import portfolio
 import scan
 import strategies
@@ -150,9 +152,10 @@ if not demo and not real_panel_available:
                        "`python scan.py --update --refresh-universe` first.")
     demo = True
 
-your_capital = st.sidebar.number_input("Your capital (₹)", min_value=500, value=2000, step=500,
-                                       help="What you would actually trade with. Every page "
-                                            "shows what happens at this size too.")
+your_capital = st.sidebar.number_input("Your budget (₹)", min_value=500, value=2000, step=500,
+                                       help="What you would actually invest. Today's picks are "
+                                            "planned for this amount, and every page shows what "
+                                            "happens at this size.")
 min_turnover = st.sidebar.number_input("Minimum traded value (₹ crore/day)", min_value=0.0,
                                        value=universe.MIN_TURNOVER_CR, step=1.0,
                                        help="Skip stocks that trade less than this. Thin stocks "
@@ -166,18 +169,218 @@ st.title("NSE Strategy Research Lab")
 st.caption("Tests trading ideas on past NSE prices with Zerodha charges, and asks one "
            "question: does it beat simply buying NIFTYBEES and holding it?")
 
-tab_lab, tab_rules, tab_scan, tab_limits = st.tabs(
-    ["Strategy Lab", "Candlestick rules", "Today's scan", "Limits"])
+tab_picks, tab_lab, tab_rules, tab_scan, tab_limits = st.tabs(
+    ["Today's picks", "Strategy Lab", "Candlestick rules", "Today's scan", "Limits"])
 
 # ------------------------------------------------------------------ strategy lab
 
-with tab_lab:
+# --------------------------------------------------------------- today's picks
+
+@st.cache_data(show_spinner="Testing the 5-stock version of each strategy on your data…")
+def get_pick_tests(demo, min_turnover):
+    panel = get_panel(demo)
+    out = {}
+    for key, strat in strategies.STRATEGIES.items():
+        try:
+            out[key] = portfolio.run(panel, strat, capital=500000.0,
+                                     top_n=picks.tested_top_n(key), min_turnover_cr=min_turnover)
+        except ValueError:
+            continue
+    return out
+
+
+@st.cache_data(ttl=1800, show_spinner="Reading today's news…")
+def get_market_news():
+    return news.market_news()
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_company_news(symbol, company):
+    return news.company_news(symbol, company)
+
+
+def md_escape(text):
+    for ch in "\\[]*_`#<>":
+        text = text.replace(ch, "\\" + ch)
+    return text
+
+
+def age(ts):
+    if ts is None or pd.isna(ts):
+        return ""
+    mins = (pd.Timestamp.now(tz="Asia/Kolkata") - ts).total_seconds() / 60
+    if mins < 60:
+        return f"{max(1, int(mins))} min ago"
+    if mins < 60 * 24:
+        return f"{int(mins // 60)}h ago"
+    return f"{int(mins // (60 * 24))}d ago"
+
+
+def headline(row, tags=None):
+    when = age(row["published"])
+    meta = ", ".join(x for x in (row["source"], when) if x)
+    tag = f" · _{', '.join(tags)}_" if tags else ""
+    return f"- [{md_escape(row['title'])}]({row['link']}) — {meta}{tag}"
+
+
+def next_review(key, last_day):
+    strat = strategies.STRATEGIES[key]
+    if strat.rebalance == "M":
+        return f"the last trading day of {last_day.strftime('%B %Y')}"
+    return "the last trading day of this week"
+
+
+def render_picks():
+    st.subheader("Today's picks")
+    st.caption("Suggestions only — this app never places orders. Picks come only from a "
+               "strategy that beat NIFTYBEES on your own price history.")
+    panel = get_panel(demo)
+    if panel is None or data.BENCHMARK not in panel["close"].columns:
+        st.error(f"{data.BENCHMARK} prices are missing. Download them with:  "
+                 f"`python scan.py --update --symbols {data.BENCHMARK}`")
+        return
+    last_day = panel["close"].index[-1]
+    tests = get_pick_tests(demo, float(min_turnover))
+    best, rows = picks.choose_strategy(tests)
+
+    if best:
+        b = next(r for r in rows if r["key"] == best)
+        st.success(f"✅ Using **{b['label']}**: its 5-stock version beat NIFTYBEES on your data "
+                   f"({pct(b['cagr'])} vs {pct(b['bench_cagr'])} a year, confidence "
+                   f"{b['t']:.1f}). Past results only — not a promise.")
+    else:
+        st.warning("⚠️ **No strategy beat NIFTYBEES** on your data in its 5-stock version, so "
+                   "there are no stock picks worth trusting today. The honest pick is "
+                   "NIFTYBEES itself.")
+    st.dataframe(pd.DataFrame([{
+        "Strategy (5 stocks)": r["label"],
+        "Verdict": "Beats NIFTYBEES" if r["beats"] else "Does not beat",
+        "Yearly return": pct(r["cagr"]), "NIFTYBEES": pct(r["bench_cagr"]),
+        "Confidence (need 2+)": "n/a" if pd.isna(r["t"]) else f"{r['t']:.1f}",
+        "Main reason": r["reasons"][0] if r["reasons"] else "passed all three tests",
+    } for r in rows]), hide_index=True, width="stretch")
+
+    industries = universe.load_industries()
+    top = []
+    if best:
+        n_tested = picks.tested_top_n(best)
+        ranked = picks.current_picks(panel, best, float(min_turnover), n=40)
+        keep, top = ranked[:n_tested], ranked[:picks.PICKS]
+        prices = picks.latest_prices(panel, ranked + [data.BENCHMARK])
+        st.markdown(f"### Top {len(top)} right now")
+        turnover = (panel["close"] * panel["volume"]).rolling(60, min_periods=40).median().iloc[-1]
+        st.dataframe(pd.DataFrame([{
+            "Rank": i + 1, "Stock": s,
+            "Company": industries.get(s, {}).get("company", ""),
+            "Industry": industries.get(s, {}).get("industry", "unknown"),
+            "Last close (₹)": round(prices.get(s, float("nan")), 2),
+            "Traded value (₹ cr/day)": round(float(turnover.get(s, 0)) / 1e7, 1),
+        } for i, s in enumerate(top)]), hide_index=True, width="stretch")
+        st.caption(f"Based on prices up to {last_day.date()}. "
+                   f"{strategies.STRATEGIES[best].label} reviews its list on "
+                   f"{next_review(best, last_day)}: check back then for what to sell.")
+    else:
+        ranked, keep = [], None
+        prices = picks.latest_prices(panel, [data.BENCHMARK])
+
+    st.markdown(f"### Plan for your budget: {rupees(your_capital)}")
+    plan_rows, left, note = picks.plan_budget(float(your_capital), ranked, prices)
+    st.write(note)
+    if plan_rows:
+        st.dataframe(pd.DataFrame([{
+            "Buy": r["symbol"], "Price (₹)": round(r["price"], 2), "Quantity": r["qty"],
+            "Cost": rupees(r["cost"]), "Buy charges": f"₹{r['buy_charges']:,.2f}",
+            "Share of budget": f"{r['share_of_budget']:.0%}",
+        } for r in plan_rows]), hide_index=True, width="stretch")
+        st.caption(f"Left over in cash: {rupees(left)}. Place these yourself in Kite as "
+                   f"Delivery (Longterm) orders.")
+        if best and plan_rows[0]["symbol"] != data.BENCHMARK and len(plan_rows) < len(top):
+            st.warning(f"Your budget holds {len(plan_rows)} of the {len(top)} picks. The tested "
+                       f"version held {len(top)}, so your results can differ a lot from the "
+                       f"backtest.")
+
+    st.markdown("### Check what you already hold")
+    st.caption("Type in what you bought. It stays on this page; nothing is sent anywhere.")
+    held = st.data_editor(
+        pd.DataFrame({"symbol": pd.Series(dtype="str"), "qty": pd.Series(dtype="float"),
+                      "buy_price": pd.Series(dtype="float")}),
+        num_rows="dynamic", key="holdings", width="stretch",
+        column_config={"symbol": st.column_config.TextColumn("Stock (e.g. TCS)"),
+                       "qty": st.column_config.NumberColumn("Quantity", min_value=0, step=1),
+                       "buy_price": st.column_config.NumberColumn("Buy price (₹)", min_value=0)})
+    held = held.dropna(how="all")
+    if len(held):
+        syms = [str(x).strip().upper().removesuffix(".NS") for x in held["symbol"].dropna()]
+        review = picks.review_holdings(held, picks.latest_prices(panel, syms + [data.BENCHMARK]),
+                                       keep, best)
+        if len(review):
+            st.dataframe(review.assign(
+                price=review["price"].map(lambda v: "—" if pd.isna(v) else f"₹{v:,.2f}"),
+                value=review["value"].map(lambda v: "—" if pd.isna(v) else rupees(v)),
+                profit_after_sell_charges=review["profit_after_sell_charges"].map(
+                    lambda v: "—" if pd.isna(v) else f"₹{v:+,.0f}")).rename(columns={
+                        "symbol": "Stock", "qty": "Quantity", "buy_price": "Bought at",
+                        "price": "Now", "value": "Worth now",
+                        "profit_after_sell_charges": "Profit if sold (after charges)",
+                        "action": "What the strategy says"}),
+                hide_index=True, width="stretch")
+
+    st.markdown("### News that can move prices")
+    st.caption("Newspapers, business TV channels' websites and searches on market-moving topics "
+               "(RBI, oil, rupee, US Fed, tariffs, conflicts). A warning system, not a stock "
+               "picker: by the time news reaches you, big funds have already traded on it. "
+               "X/Twitter and live TV broadcasts are not included.")
+    if not st.toggle("Load today's news (fetches from the internet)", key="news_on"):
+        return
+    market, failed = get_market_news()
+    if market.empty:
+        st.warning("Couldn't load any news. Check your internet connection and try again.")
+        return
+    if top and not demo:
+        st.markdown("#### News about your picks")
+        for sym in top:
+            info = industries.get(sym, {})
+            company, industry = info.get("company"), info.get("industry")
+            cn, _ = get_company_news(sym, company)
+            flagged = cn[cn["flags"].map(bool)] if len(cn) else cn
+            sector = news.news_for_industry(market, industry) if industry else market.iloc[0:0]
+            title = (f"{'⚠️ ' if len(flagged) else ''}{sym}"
+                     f"{f' — {company}' if company else ''} · {len(cn)} company headlines, "
+                     f"{len(sector)} market/sector headlines")
+            with st.expander(title):
+                for _, row in flagged.iterrows():
+                    notes = "; ".join(news.RED_FLAG_NOTE[f] for f in row["flags"])
+                    st.warning(f"**{notes}:** {row['title']}")
+                st.markdown("**About the company**")
+                st.markdown("\n".join(headline(r) for _, r in cn.head(6).iterrows())
+                            or "_No recent headlines found._")
+                if industry:
+                    st.markdown(f"**Market and {industry} news**")
+                    st.markdown("\n".join(headline(r, r["sectors"]) for _, r in
+                                          sector.head(6).iterrows()) or "_Nothing recent._")
+                else:
+                    st.caption("Industry unknown — run `python scan.py --refresh-universe` to "
+                               "fetch industries.")
+    elif demo:
+        st.info("Company news needs your downloaded prices (demo stocks are made up). The "
+                "market news below is real.")
+    st.markdown("#### Market and world news")
+    st.markdown("\n".join(headline(r, r["sectors"]) for _, r in market.head(30).iterrows()))
+    if failed:
+        st.caption("Could not reach: " + ", ".join(failed))
+
+
+with tab_picks:
+    render_picks()
+
+
+def render_lab():
     panel = get_panel(demo)
     if panel is None or data.BENCHMARK not in panel["close"].columns:
         st.error(f"{data.BENCHMARK} prices are missing, so there is nothing to compare "
                  f"against. Download them with:  `python scan.py --update --symbols "
                  f"{data.BENCHMARK}`")
-        st.stop()
+        return
 
     first_day = panel["close"].index[0].date()
     last_day = panel["close"].index[-1].date()
@@ -203,7 +406,7 @@ with tab_lab:
                                       "this date.")
             period = st.slider("Period", min_value=first_day, max_value=last_day,
                                value=(first_day, last_day), format="YYYY-MM-DD")
-        submitted = st.form_submit_button("Run backtest", type="primary")
+        st.form_submit_button("Run backtest", type="primary")
 
     args = dict(demo=demo, key=key, top_n=int(top_n), min_turnover=float(min_turnover),
                 start=str(period[0]), end=str(period[1]), split=str(split))
@@ -212,7 +415,7 @@ with tab_lab:
         small = get_backtest(capital=float(your_capital), **args)
     except ValueError as exc:
         st.warning(f"{exc} Pick a longer period.")
-        st.stop()
+        return
 
     m, v = res.metrics, res.verdict
     if v["beats_benchmark"]:
@@ -291,6 +494,10 @@ with tab_lab:
         st.dataframe(res.trades, hide_index=True, width="stretch")
         st.download_button("Download trades (CSV)", res.trades.to_csv(index=False),
                            file_name=f"{key}_trades.csv", mime="text/csv")
+
+
+with tab_lab:
+    render_lab()
 
 # -------------------------------------------------------------- candlestick rules
 

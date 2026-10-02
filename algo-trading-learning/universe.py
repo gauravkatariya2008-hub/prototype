@@ -57,6 +57,7 @@ def load_symbols(refresh=False):
             syms = sorted(eq[col].astype(str).str.strip().unique())
             SYMBOLS_FILE.write_text("\n".join(syms))
             print(f"Refreshed universe from NSE: {len(syms)} symbols.")
+            refresh_industries()
             return syms
         except Exception as exc:                        # noqa: BLE001 - any failure falls back
             print(f"Could not refresh from NSE ({type(exc).__name__}: {exc}).")
@@ -81,3 +82,38 @@ def passes_filters(df, min_turnover_cr=MIN_TURNOVER_CR):
     if len(df) < MIN_HISTORY_DAYS:
         return False
     return turnover_crores(df) >= min_turnover_cr
+
+
+# --- industries (used to link sector news to your picks) ----------------------
+
+INDUSTRIES_FILE = Path(__file__).with_name("industries.csv")
+NIFTY500_URL = "https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv"
+
+
+def refresh_industries():
+    """Company name and NSE industry for the Nifty 500, saved to industries.csv."""
+    try:
+        import requests
+        headers = {"User-Agent": "Mozilla/5.0", "Accept": "text/csv,*/*"}
+        resp = requests.get(NIFTY500_URL, headers=headers, timeout=30)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text))
+        df.columns = [c.strip() for c in df.columns]
+        out = df.rename(columns={"Symbol": "symbol", "Company Name": "company",
+                                 "Industry": "industry"})[["symbol", "company", "industry"]]
+        out.to_csv(INDUSTRIES_FILE, index=False)
+        print(f"Saved industries for {len(out)} companies.")
+        return True
+    except Exception as exc:                            # noqa: BLE001 - optional extra
+        print(f"Could not fetch industries from NSE ({type(exc).__name__}). Sector news "
+              f"links will be missing until it works.")
+        return False
+
+
+def load_industries():
+    """{symbol: {"company": ..., "industry": ...}} or {} if never fetched."""
+    if not INDUSTRIES_FILE.exists():
+        return {}
+    df = pd.read_csv(INDUSTRIES_FILE)
+    return {r.symbol: {"company": r.company, "industry": r.industry}
+            for r in df.itertuples(index=False)}
