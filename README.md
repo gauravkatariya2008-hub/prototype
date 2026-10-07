@@ -18,8 +18,10 @@ Single-file HTML, CSS, and JavaScript. No backend — cart and catalog state are
 A one-tap sales recorder for running a stall: https://gauravkatariya2008-hub.github.io/prototype/stall/
 
 - Add products with price and (optional) stock quantity
-- Tap a product button to record one sale; totals and stock update instantly
-- Undo last sale, delete any single sale, per-product summary, CSV download
+- Tap products to build a bill, then tap **Cash** or **UPI** to save it
+- Header shows today's total split into cash and UPI
+- Undo last bill, switch a bill between Cash/UPI, delete a bill, per-product summary
+- Excel (CSV) download, backup file download and restore
 - Data is saved in the phone's browser (localStorage) and the page works offline after the first load
 
 ## Status
