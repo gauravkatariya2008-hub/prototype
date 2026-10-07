@@ -14,5 +14,13 @@ https://gauravkatariya2008-hub.github.io/prototype/
 ## Tech
 Single-file HTML, CSS, and JavaScript. No backend — cart and catalog state are stored in the browser (localStorage).
 
+## Stall Sales app (`/stall`)
+A one-tap sales recorder for running a stall: https://gauravkatariya2008-hub.github.io/prototype/stall/
+
+- Add products with price and (optional) stock quantity
+- Tap a product button to record one sale; totals and stock update instantly
+- Undo last sale, delete any single sale, per-product summary, CSV download
+- Data is saved in the phone's browser (localStorage) and the page works offline after the first load
+
 ## Status
 A fast prototype, not a production store — built in about 30 minutes to test how quickly a working storefront concept could be assembled with AI coding tools, and to get hands-on practice with the flow end to end.

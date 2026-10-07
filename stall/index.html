@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Stall Sales</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #16a34a;
+      --accent-text: #ffffff;
+      --danger: #dc2626;
+      --warn: #d97706;
+      --bar: #111827;
+      --bar-text: #f9fafb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0b0f17;
+        --card: #161b26;
+        --text: #f3f4f6;
+        --muted: #9ca3af;
+        --border: #273042;
+        --accent: #22c55e;
+        --accent-text: #052e16;
+        --danger: #f87171;
+        --warn: #fbbf24;
+        --bar: #000000;
+        --bar-text: #f9fafb;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; touch-action: manipulation; }
+
+    /* ---------- Header ---------- */
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--bar); color: var(--bar-text);
+      padding: calc(10px + env(safe-area-inset-top)) 16px 0;
+    }
+    .totals { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .totals .label { font-size: 12px; opacity: .7; text-transform: uppercase; letter-spacing: .05em; }
+    .totals .amount { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .totals .count { font-size: 15px; opacity: .85; font-variant-numeric: tabular-nums; text-align: right; }
+    nav { display: flex; margin-top: 8px; }
+    nav button {
+      flex: 1; background: none; border: none; color: var(--bar-text);
+      padding: 12px 0; font-weight: 600; opacity: .6;
+      border-bottom: 3px solid transparent;
+    }
+    nav button.active { opacity: 1; border-bottom-color: var(--accent); }
+
+    main { padding: 16px; max-width: 900px; margin: 0 auto; }
+    section[hidden] { display: none; }
+
+    /* ---------- Sell grid ---------- */
+    .grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+    .product-btn {
+      position: relative;
+      min-height: 120px;
+      background: var(--card); border: 2px solid var(--border); border-radius: 16px;
+      padding: 14px 12px; text-align: left;
+      display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
+      user-select: none; -webkit-user-select: none;
+      transition: transform .08s ease;
+    }
+    .product-btn:active { transform: scale(.96); }
+    .product-btn .name { font-size: 18px; font-weight: 700; line-height: 1.2; word-break: break-word; }
+    .product-btn .price { font-size: 22px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .product-btn .meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .product-btn .meta .low { color: var(--warn); font-weight: 700; }
+    .product-btn .meta .out { color: var(--danger); font-weight: 700; }
+    .product-btn.flash { animation: flash .45s ease; }
+    @keyframes flash {
+      0% { background: var(--accent); border-color: var(--accent); }
+      100% { background: var(--card); border-color: var(--border); }
+    }
+
+    .empty {
+      text-align: center; padding: 48px 16px; color: var(--muted);
+      background: var(--card); border: 2px dashed var(--border); border-radius: 16px;
+    }
+    .empty p { margin-bottom: 16px; }
+
+    /* ---------- Bottom bar ---------- */
+    .bottom {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+      background: var(--card); border-top: 1px solid var(--border);
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      display: flex; gap: 12px; align-items: center;
+    }
+    .bottom .last { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bottom .last strong { color: var(--text); }
+
+    /* ---------- Generic UI ---------- */
+    .btn {
+      border: none; border-radius: 12px; padding: 12px 18px; font-weight: 700;
+      background: var(--accent); color: var(--accent-text);
+    }
+    .btn.secondary { background: var(--card); color: var(--text); border: 2px solid var(--border); }
+    .btn.danger { background: var(--danger); color: #fff; }
+    .btn:disabled { opacity: .4; }
+    .btn.small { padding: 8px 12px; font-size: 14px; border-radius: 10px; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+    .card h2 { font-size: 17px; margin-bottom: 12px; }
+
+    .form { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+    .form .full { grid-column: 1 / -1; }
+    .form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+    .form input {
+      width: 100%; padding: 12px; border-radius: 10px;
+      border: 2px solid var(--border); background: var(--bg); font-size: 16px;
+    }
+    .form input:focus { outline: none; border-color: var(--accent); }
+    .form .actions { grid-column: 1 / -1; display: flex; gap: 10px; }
+    .form .actions .btn { flex: 1; }
+    .hint { font-size: 12px; color: var(--muted); }
+
+    .list { list-style: none; }
+    .list li {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .list li:last-child { border-bottom: none; }
+    .list .grow { flex: 1; min-width: 0; }
+    .list .title { font-weight: 600; word-break: break-word; }
+    .list .sub { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .list .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .icon-btn {
+      background: none; border: 1px solid var(--border); border-radius: 10px;
+      min-width: 40px; height: 40px; padding: 0 10px; color: var(--muted); font-size: 14px;
+    }
+    .icon-btn.del { color: var(--danger); }
+
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { padding: 10px 4px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    td.num, th.num { text-align: right; }
+    tfoot td { font-weight: 800; border-bottom: none; }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .row .btn { flex: 1; min-width: 140px; }
+
+    /* ---------- Toast ---------- */
+    .toast {
+      position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 20;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bar); color: var(--bar-text);
+      padding: 12px 18px; border-radius: 999px; font-weight: 700;
+      opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s;
+      max-width: calc(100% - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="totals">
+      <div>
+        <div class="label">Total sales</div>
+        <div class="amount" id="totalAmount">₹0</div>
+      </div>
+      <div class="count" id="totalCount">0 items</div>
+    </div>
+    <nav>
+      <button data-tab="sell" class="active">Sell</button>
+      <button data-tab="sales">Sales</button>
+      <button data-tab="products">Products</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- SELL -->
+    <section id="tab-sell">
+      <div class="grid" id="sellGrid"></div>
+    </section>
+
+    <!-- SALES -->
+    <section id="tab-sales" hidden>
+      <div class="card">
+        <h2>Summary</h2>
+        <table>
+          <thead><tr><th>Product</th><th class="num">Sold</th><th class="num">Revenue</th></tr></thead>
+          <tbody id="summaryBody"></tbody>
+          <tfoot><tr><td>Total</td><td class="num" id="sumCount">0</td><td class="num" id="sumAmount">₹0</td></tr></tfoot>
+        </table>
+      </div>
+      <div class="card">
+        <div class="row">
+          <button class="btn secondary" id="exportBtn">Download CSV</button>
+          <button class="btn danger" id="clearBtn">Clear all sales</button>
+        </div>
+        <p class="hint" style="margin-top:10px">Sales are saved on this phone only. Download a CSV every few hours as a backup.</p>
+      </div>
+      <div class="card">
+        <h2>Every sale (newest first)</h2>
+        <ul class="list" id="salesList"></ul>
+      </div>
+    </section>
+
+    <!-- PRODUCTS -->
+    <section id="tab-products" hidden>
+      <div class="card">
+        <h2 id="formTitle">Add product</h2>
+        <form class="form" id="productForm" autocomplete="off">
+          <label class="full">Name
+            <input id="fName" required maxlength="40" placeholder="e.g. Cold coffee">
+          </label>
+          <label>Price (₹)
+            <input id="fPrice" type="number" inputmode="decimal" min="0" step="any" required placeholder="50">
+          </label>
+          <label>Quantity in stock
+            <input id="fStock" type="number" inputmode="numeric" min="0" step="1" placeholder="Blank = no limit">
+          </label>
+          <div class="actions">
+            <button type="submit" class="btn" id="saveBtn">Add product</button>
+            <button type="button" class="btn secondary" id="cancelEdit" hidden>Cancel</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Your products</h2>
+        <ul class="list" id="productList"></ul>
+      </div>
+    </section>
+  </main>
+
+  <div class="bottom">
+    <div class="last" id="lastSale">No sales yet</div>
+    <button class="btn secondary" id="undoBtn" disabled>↶ Undo last</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const CURRENCY = '₹';
+    const STORAGE_KEY = 'stall-sales-v1';
+    const LOW_STOCK = 3;
+
+    // ---------- State ----------
+    // products: [{ id, name, price, stock }]  stock = remaining units, or null for "no limit"
+    // sales:    [{ id, pid, name, price, t }] name/price copied at sale time so later edits don't rewrite history
+    let state = load();
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (Array.isArray(s.products) && Array.isArray(s.sales)) return s;
+        }
+      } catch (e) {}
+      return { products: [], sales: [] };
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        showToast('⚠ Could not save — download a CSV now');
+      }
+    }
+
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const money = n => CURRENCY + (Math.round(n * 100) / 100).toLocaleString('en-IN');
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const timeStr = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const $ = id => document.getElementById(id);
+
+    // ---------- Selling ----------
+    function sell(pid) {
+      const p = state.products.find(x => x.id === pid);
+      if (!p) return;
+      // Never block a sale: if the stock count was off, the sale still gets recorded.
+      if (p.stock !== null) p.stock -= 1;
+      state.sales.push({ id: uid(), pid: p.id, name: p.name, price: p.price, t: Date.now() });
+      save();
+      if (navigator.vibrate) navigator.vibrate(30);
+      showToast('✓ ' + p.name + '  ' + money(p.price));
+      render();
+      const btn = document.querySelector('[data-pid="' + pid + '"]');
+      if (btn) { btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash'); }
+    }
+
+    function removeSale(saleId) {
+      const i = state.sales.findIndex(s => s.id === saleId);
+      if (i === -1) return null;
+      const [sale] = state.sales.splice(i, 1);
+      const p = state.products.find(x => x.id === sale.pid);
+      if (p && p.stock !== null) p.stock += 1;
+      save();
+      return sale;
+    }
+
+    function undoLast() {
+      const last = state.sales[state.sales.length - 1];
+      if (!last) return;
+      removeSale(last.id);
+      if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+      showToast('↶ Removed ' + last.name);
+      render();
+    }
+
+    // ---------- Rendering ----------
+    function soldCounts() {
+      const m = {};
+      for (const s of state.sales) m[s.pid] = (m[s.pid] || 0) + 1;
+      return m;
+    }
+
+    function render() {
+      const total = state.sales.reduce((a, s) => a + s.price, 0);
+      const n = state.sales.length;
+      $('totalAmount').textContent = money(total);
+      $('totalCount').textContent = n + (n === 1 ? ' item' : ' items');
+
+      const last = state.sales[n - 1];
+      $('lastSale').innerHTML = last
+        ? 'Last: <strong>' + esc(last.name) + '</strong> ' + money(last.price) + ' · ' + timeStr(last.t)
+        : 'No sales yet';
+      $('undoBtn').disabled = !last;
+
+      renderSell();
+      renderSales();
+      renderProducts();
+    }
+
+    function stockLabel(p) {
+      if (p.stock === null) return '';
+      if (p.stock <= 0) return '<span class="out">' + (p.stock === 0 ? 'Out of stock' : 'Over by ' + (-p.stock)) + '</span>';
+      if (p.stock <= LOW_STOCK) return '<span class="low">' + p.stock + ' left</span>';
+      return '<span>' + p.stock + ' left</span>';
+    }
+
+    function renderSell() {
+      const grid = $('sellGrid');
+      if (!state.products.length) {
+        grid.style.display = 'block';
+        grid.innerHTML = '<div class="empty"><p>No products yet.</p><button class="btn" onclick="switchTab(\'products\')">Add your products</button></div>';
+        return;
+      }
+      grid.style.display = '';
+      const sold = soldCounts();
+      grid.innerHTML = state.products.map(p =>
+        '<button class="product-btn" data-pid="' + p.id + '">' +
+          '<span class="name">' + esc(p.name) + '</span>' +
+          '<span class="price">' + money(p.price) + '</span>' +
+          '<span class="meta">' + (stockLabel(p) || '<span></span>') + '<span>' + (sold[p.id] || 0) + ' sold</span></span>' +
+        '</button>'
+      ).join('');
+    }
+
+    function renderSales() {
+      const sold = {};
+      for (const s of state.sales) {
+        const k = s.pid;
+        if (!sold[k]) sold[k] = { name: s.name, qty: 0, amt: 0 };
+        sold[k].qty += 1;
+        sold[k].amt += s.price;
+        sold[k].name = s.name;
+      }
+      const rows = Object.values(sold).sort((a, b) => b.amt - a.amt);
+      $('summaryBody').innerHTML = rows.length
+        ? rows.map(r => '<tr><td>' + esc(r.name) + '</td><td class="num">' + r.qty + '</td><td class="num">' + money(r.amt) + '</td></tr>').join('')
+        : '<tr><td colspan="3" class="hint">Nothing sold yet</td></tr>';
+      $('sumCount').textContent = state.sales.length;
+      $('sumAmount').textContent = money(state.sales.reduce((a, s) => a + s.price, 0));
+
+      // Newest first; cap the rendered list so the page stays fast over a long day.
+      const recent = state.sales.slice(-300).reverse();
+      $('salesList').innerHTML = recent.length
+        ? recent.map(s =>
+            '<li><div class="grow"><div class="title">' + esc(s.name) + '</div><div class="sub">' + timeStr(s.t) + '</div></div>' +
+            '<div class="amt">' + money(s.price) + '</div>' +
+            '<button class="icon-btn del" data-del-sale="' + s.id + '" aria-label="Delete sale">✕</button></li>'
+          ).join('') +
+          (state.sales.length > 300 ? '<li class="hint">Showing latest 300 of ' + state.sales.length + '. CSV has all of them.</li>' : '')
+        : '<li class="hint">No sales yet</li>';
+      $('exportBtn').disabled = !state.sales.length;
+      $('clearBtn').disabled = !state.sales.length;
+    }
+
+    function renderProducts() {
+      $('productList').innerHTML = state.products.length
+        ? state.products.map((p, i) =>
+            '<li><div class="grow"><div class="title">' + esc(p.name) + '</div>' +
+            '<div class="sub">' + money(p.price) + ' · ' + (p.stock === null ? 'no stock limit' : p.stock < 0 ? 'sold ' + (-p.stock) + ' more than stock' : p.stock + ' in stock') + '</div></div>' +
+            '<button class="icon-btn" data-move="' + p.id + '" data-dir="-1" aria-label="Move up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+            '<button class="icon-btn" data-edit="' + p.id + '">Edit</button>' +
+            '<button class="icon-btn del" data-del-product="' + p.id + '" aria-label="Delete product">✕</button></li>'
+          ).join('')
+        : '<li class="hint">No products yet — add one above.</li>';
+    }
+
+    // ---------- Products form ----------
+    let editingId = null;
+
+    function resetForm() {
+      editingId = null;
+      $('productForm').reset();
+      $('formTitle').textContent = 'Add product';
+      $('saveBtn').textContent = 'Add product';
+      $('cancelEdit').hidden = true;
+    }
+
+    $('productForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = $('fName').value.trim();
+      const price = parseFloat($('fPrice').value);
+      const stockRaw = $('fStock').value.trim();
+      const stock = stockRaw === '' ? null : parseInt(stockRaw, 10);
+      if (!name || !(price >= 0) || (stock !== null && !(stock >= 0))) {
+        showToast('Check name, price and quantity');
+        return;
+      }
+      if (editingId) {
+        const p = state.products.find(x => x.id === editingId);
+        if (p) Object.assign(p, { name, price, stock });
+        showToast('Saved ' + name);
+      } else {
+        state.products.push({ id: uid(), name, price, stock });
+        showToast('Added ' + name);
+      }
+      save();
+      resetForm();
+      render();
+      $('fName').focus();
+    });
+
+    $('cancelEdit').addEventListener('click', resetForm);
+
+    $('productList').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.edit) {
+        const p = state.products.find(x => x.id === b.dataset.edit);
+        if (!p) return;
+        editingId = p.id;
+        $('fName').value = p.name;
+        $('fPrice').value = p.price;
+        $('fStock').value = p.stock === null ? '' : p.stock;
+        $('formTitle').textContent = 'Edit ' + p.name;
+        $('saveBtn').textContent = 'Save changes';
+        $('cancelEdit').hidden = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (b.dataset.delProduct) {
+        const p = state.products.find(x => x.id === b.dataset.delProduct);
+        if (!p || !confirm('Delete "' + p.name + '"? Sales already recorded stay in the log.')) return;
+        state.products = state.products.filter(x => x.id !== p.id);
+        if (editingId === p.id) resetForm();
+        save(); render();
+      } else if (b.dataset.move) {
+        const i = state.products.findIndex(x => x.id === b.dataset.move);
+        const j = i + Number(b.dataset.dir);
+        if (i < 0 || j < 0 || j >= state.products.length) return;
+        [state.products[i], state.products[j]] = [state.products[j], state.products[i]];
+        save(); render();
+      }
+    });
+
+    // ---------- Sales tab ----------
+    $('salesList').addEventListener('click', e => {
+      const b = e.target.closest('[data-del-sale]');
+      if (!b) return;
+      const s = state.sales.find(x => x.id === b.dataset.delSale);
+      if (!s || !confirm('Delete this sale? ' + s.name + ' ' + money(s.price) + ' at ' + timeStr(s.t))) return;
+      removeSale(s.id);
+      render();
+    });
+
+    $('clearBtn').addEventListener('click', () => {
+      if (!state.sales.length) return;
+      if (!confirm('Delete ALL ' + state.sales.length + ' sales (' + money(state.sales.reduce((a, s) => a + s.price, 0)) + ')? This cannot be undone.\n\nDownload the CSV first if you need it.')) return;
+      if (!confirm('Are you sure? Products are kept, stock counts are NOT restored.')) return;
+      state.sales = [];
+      save(); render();
+    });
+
+    $('exportBtn').addEventListener('click', () => {
+      const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+      const lines = [['Date', 'Time', 'Product', 'Price'].join(',')];
+      for (const s of state.sales) {
+        const d = new Date(s.t);
+        lines.push([q(d.toLocaleDateString('en-IN')), q(d.toLocaleTimeString('en-IN')), q(s.name), s.price].join(','));
+      }
+      lines.push('');
+      lines.push(['', '', q('TOTAL'), state.sales.reduce((a, s) => a + s.price, 0)].join(','));
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'stall-sales-' + stamp + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+
+    // ---------- Sell + undo ----------
+    $('sellGrid').addEventListener('click', e => {
+      const b = e.target.closest('[data-pid]');
+      if (b) sell(b.dataset.pid);
+    });
+    $('undoBtn').addEventListener('click', undoLast);
+
+    // ---------- Tabs ----------
+    function switchTab(name) {
+      document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      document.querySelectorAll('main > section').forEach(s => { s.hidden = s.id !== 'tab-' + name; });
+      window.scrollTo(0, 0);
+    }
+    document.querySelector('nav').addEventListener('click', e => {
+      const b = e.target.closest('[data-tab]');
+      if (b) switchTab(b.dataset.tab);
+    });
+
+    // ---------- Toast ----------
+    let toastTimer;
+    function showToast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 1400);
+    }
+
+    // Keep data in sync if the app is open in two tabs.
+    window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { state = load(); render(); } });
+
+    // Works offline after the first load (college Wi-Fi is unreliable).
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+
+    render();
+  </script>
+</body>
+</html>
